@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.25);
+}
+
+.card-drag-over {
+  border-top: 2px solid #60a5fa !important;
+}
+
+.list-drag-over {
+  outline: 2px dashed #60a5fa;
+  outline-offset: 2px;
+}
+
+.dragging {
+  opacity: 0.4;
+}
+
+textarea {
+  resize: none;
+  field-sizing: content;
+}
+
+.board-bg-blue     { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); }
+.board-bg-green    { background: linear-gradient(135deg, #14532d 0%, #166534 100%); }
+.board-bg-purple   { background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%); }
+.board-bg-red      { background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%); }
+.board-bg-orange   { background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); }
+.board-bg-teal     { background: linear-gradient(135deg, #134e4a 0%, #0f766e 100%); }
+.board-bg-pink     { background: linear-gradient(135deg, #831843 0%, #9d174d 100%); }
+.board-bg-slate    { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }

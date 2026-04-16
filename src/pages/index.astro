@@ -23,12 +23,13 @@ import '../styles/global.css';
       <span id="header-project-name" class="text-white/70 truncate"></span>
     </div>
     <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+      <span id="header-user-email" class="hidden text-xs text-white/30 max-w-[160px] truncate"></span>
       <button id="btn-new-project"
         class="hidden text-xs bg-blue-600 hover:bg-blue-500 transition-colors px-3 py-1.5 rounded-md font-medium">
         + Новый проект
       </button>
       <button id="btn-logout"
-        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md">
+        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
         Выйти
       </button>
     </div>
@@ -47,7 +48,7 @@ import '../styles/global.css';
   // @ts-nocheck
   import { createClient } from '@supabase/supabase-js'
 
-  const supabase = createClient(
+  const sb = createClient(
     import.meta.env.PUBLIC_SUPABASE_URL,
     import.meta.env.PUBLIC_SUPABASE_ANON_KEY
   )
@@ -65,10 +66,13 @@ import '../styles/global.css';
   ]
 
   // ─── STATE ───────────────────────────────────────────────────────────────────
+  const STORAGE_KEY = 'my-trello-v2'
   let appData = { projects: [] }
   let currentProjectId = null
-  let currentSession = null
   let saveTimer = null
+  let dbSaveTimer = null
+  let currentSession = null
+  const collapsed = new Set()
 
   // ─── UTILS ───────────────────────────────────────────────────────────────────
   function uid() {
@@ -80,33 +84,46 @@ import '../styles/global.css';
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;')
   }
 
-  // ─── SUPABASE DATA ───────────────────────────────────────────────────────────
+  // ─── STORAGE ─────────────────────────────────────────────────────────────────
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) appData = JSON.parse(raw)
+    } catch (_) {}
+    if (!appData.projects?.length) seedDemo()
+  }
+
   async function loadFromDB() {
-    const { data: row } = await supabase
+    const { data, error } = await sb
       .from('projects_data')
       .select('data')
       .single()
-
-    if (row?.data?.projects) {
-      appData = row.data
-    } else {
-      seedDemo()
-      await saveToDB()
+    if (error || !data) {
+      // no DB row yet — fall back to localStorage (migration)
+      loadLocal()
+      return
     }
+    appData = data.data
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData))
   }
 
   function save() {
     clearTimeout(saveTimer)
-    saveTimer = setTimeout(saveToDB, 600)
+    saveTimer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appData))
+    }, 300)
+    saveToDB()
   }
 
-  async function saveToDB() {
+  function saveToDB() {
     if (!currentSession) return
-    await supabase.from('projects_data').upsert({
-      user_id: currentSession.user.id,
-      data: appData,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
+    clearTimeout(dbSaveTimer)
+    dbSaveTimer = setTimeout(async () => {
+      await sb.from('projects_data').upsert(
+        { user_id: currentSession.user.id, data: appData, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      )
+    }, 1500)
   }
 
   // ─── DEMO DATA ───────────────────────────────────────────────────────────────
@@ -114,7 +131,7 @@ import '../styles/global.css';
     appData = {
       projects: [
         {
-          id: uid(), title: 'Собрать сайт', color: 'blue',
+          id: uid(), title: 'Собрать сайт', color: 'blue', updatedAt: Date.now(), deadline: null,
           subtasks: [
             {
               id: uid(), title: 'Главная страница',
@@ -139,6 +156,10 @@ import '../styles/global.css';
                 { id: uid(), title: 'Подключить Vercel', done: false },
               ]
             },
+          ],
+          notes: [
+            { id: uid(), title: '🔑 Доступы', content: 'FTP: ftp.example.com\nLogin: admin\nPass: ...' },
+            { id: uid(), title: '💬 Клиент', content: 'Иванов Иван\nTelegram: @ivanov\nХочет синий цвет, без анимаций' },
           ]
         },
       ]
@@ -146,6 +167,67 @@ import '../styles/global.css';
   }
 
   function getProject(id) { return appData.projects.find(p => p.id === id) }
+
+  function touchProject(id) {
+    const p = getProject(id)
+    if (p) p.updatedAt = Date.now()
+  }
+
+  function saveProject() {
+    if (currentProjectId) touchProject(currentProjectId)
+    save()
+  }
+
+  function timeAgo(ts) {
+    if (!ts) return null
+    const diff = Date.now() - ts
+    const mins = Math.floor(diff / 60000)
+    if (mins < 2) return 'только что'
+    if (mins < 60) return `${mins} мин назад`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs} ч назад`
+    const days = Math.floor(hrs / 24)
+    if (days === 1) return 'вчера'
+    if (days < 7) return `${days} дн назад`
+    if (days < 30) return `${Math.floor(days / 7)} нед назад`
+    return `${Math.floor(days / 30)} мес назад`
+  }
+
+  function deadlineInfo(dateStr) {
+    if (!dateStr) return null
+    const today = new Date(); today.setHours(0,0,0,0)
+    const dl = new Date(dateStr); dl.setHours(0,0,0,0)
+    const diffDays = Math.round((dl - today) / 86400000)
+    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+    const label = diffDays < 0
+      ? `просрочен на ${Math.abs(diffDays)} дн`
+      : diffDays === 0 ? 'сегодня'
+      : diffDays === 1 ? 'завтра'
+      : diffDays <= 6 ? `через ${diffDays} дн`
+      : `до ${dl.getDate()} ${months[dl.getMonth()]}`
+    const urgency = diffDays < 0 ? 'red'
+      : diffDays === 0 ? 'orange'
+      : diffDays <= 2 ? 'yellow'
+      : 'normal'
+    return { label, urgency, diffDays }
+  }
+
+  function sortProjects(projects) {
+    return [...projects].sort((a, b) => {
+      const ad = deadlineInfo(a.deadline)
+      const bd = deadlineInfo(b.deadline)
+      // overdue first
+      const aOverdue = ad && ad.diffDays < 0
+      const bOverdue = bd && bd.diffDays < 0
+      if (aOverdue !== bOverdue) return aOverdue ? -1 : 1
+      // then by deadline (soonest first)
+      const aDl = a.deadline ? new Date(a.deadline).getTime() : Infinity
+      const bDl = b.deadline ? new Date(b.deadline).getTime() : Infinity
+      if (aDl !== bDl) return aDl - bDl
+      // then least recently updated first (most neglected)
+      return (a.updatedAt || 0) - (b.updatedAt || 0)
+    })
+  }
 
   // ─── PROGRESS ────────────────────────────────────────────────────────────────
   function projectProgress(proj) {
@@ -161,6 +243,126 @@ import '../styles/global.css';
     return { done, total, pct: Math.round(done / total * 100) }
   }
 
+  // ─── AUTH UI ─────────────────────────────────────────────────────────────────
+  function showHeaderAuth(session) {
+    const emailEl = document.getElementById('header-user-email')
+    const logoutBtn = document.getElementById('btn-logout')
+    if (session) {
+      emailEl.textContent = session.user.email
+      emailEl.classList.remove('hidden')
+      logoutBtn.classList.remove('hidden')
+    } else {
+      emailEl.classList.add('hidden')
+      logoutBtn.classList.add('hidden')
+    }
+  }
+
+  function renderAuth(msg = '') {
+    document.getElementById('header-breadcrumb').classList.add('hidden')
+    document.getElementById('btn-new-project').classList.add('hidden')
+    showHeaderAuth(null)
+
+    document.getElementById('app').innerHTML = `
+      <div class="flex flex-col items-center justify-center min-h-[70vh] px-4">
+        <div class="w-full max-w-sm">
+          <div class="text-center mb-8">
+            <div class="text-5xl mb-3">📋</div>
+            <h1 class="text-2xl font-bold mb-1">My Trello</h1>
+            <p class="text-white/40 text-sm">Войди чтобы начать</p>
+          </div>
+          <div class="bg-[#282e33] rounded-2xl p-6 shadow-xl">
+            ${msg ? `<div id="auth-msg" class="text-sm text-center mb-4 px-3 py-2 rounded-lg bg-blue-500/15 text-blue-300">${msg}</div>` : ''}
+            <div id="auth-step-email">
+              <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Email</label>
+              <input id="auth-email" type="email" placeholder="you@example.com"
+                class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 mb-4"/>
+              <button id="auth-send-btn"
+                class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-xl py-3 text-sm font-semibold">
+                Получить ссылку для входа
+              </button>
+            </div>
+            <div id="auth-step-otp" class="hidden">
+              <p class="text-sm text-white/60 text-center mb-4">Введи код из письма</p>
+              <input id="auth-otp" type="text" placeholder="123456" maxlength="6"
+                class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-4 py-3 text-sm text-center tracking-[0.4em] focus:outline-none focus:border-blue-500 mb-4"/>
+              <button id="auth-verify-btn"
+                class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-xl py-3 text-sm font-semibold">
+                Войти
+              </button>
+              <button id="auth-back-btn"
+                class="w-full mt-2 text-white/30 hover:text-white/60 text-sm py-2 transition-colors">
+                ← Изменить email
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>`
+
+    let sentEmail = ''
+
+    document.getElementById('auth-send-btn').addEventListener('click', async () => {
+      const email = document.getElementById('auth-email').value.trim()
+      if (!email) { document.getElementById('auth-email').focus(); return }
+      const btn = document.getElementById('auth-send-btn')
+      btn.textContent = 'Отправляем...'
+      btn.disabled = true
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
+      if (error) {
+        btn.textContent = 'Получить ссылку для входа'
+        btn.disabled = false
+        showAuthMsg('Ошибка: ' + error.message)
+        return
+      }
+      sentEmail = email
+      document.getElementById('auth-step-email').classList.add('hidden')
+      document.getElementById('auth-step-otp').classList.remove('hidden')
+      showAuthMsg(`Код отправлен на ${email}`)
+      document.getElementById('auth-otp').focus()
+    })
+
+    document.getElementById('auth-email').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('auth-send-btn').click()
+    })
+
+    document.getElementById('auth-verify-btn').addEventListener('click', async () => {
+      const token = document.getElementById('auth-otp').value.trim()
+      if (!token) { document.getElementById('auth-otp').focus(); return }
+      const btn = document.getElementById('auth-verify-btn')
+      btn.textContent = 'Проверяем...'
+      btn.disabled = true
+      const { error } = await sb.auth.verifyOtp({ email: sentEmail, token, type: 'email' })
+      if (error) {
+        btn.textContent = 'Войти'
+        btn.disabled = false
+        showAuthMsg('Неверный код. Попробуй ещё раз.')
+      }
+      // onAuthStateChange will fire and take over
+    })
+
+    document.getElementById('auth-otp').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('auth-verify-btn').click()
+    })
+
+    document.getElementById('auth-back-btn').addEventListener('click', () => {
+      document.getElementById('auth-step-otp').classList.add('hidden')
+      document.getElementById('auth-step-email').classList.remove('hidden')
+    })
+  }
+
+  function showAuthMsg(text) {
+    let el = document.getElementById('auth-msg')
+    if (!el) {
+      el = document.createElement('div')
+      el.id = 'auth-msg'
+      el.className = 'text-sm text-center mb-4 px-3 py-2 rounded-lg bg-blue-500/15 text-blue-300'
+      const step = document.getElementById('auth-step-otp').classList.contains('hidden')
+        ? document.getElementById('auth-step-email')
+        : document.getElementById('auth-step-otp')
+      step.parentElement.insertBefore(el, step)
+    }
+    el.textContent = text
+  }
+
   // ─── ROUTING ─────────────────────────────────────────────────────────────────
   function route() {
     const hash = location.hash
@@ -168,67 +370,6 @@ import '../styles/global.css';
     render()
   }
   function go(path) { location.hash = path }
-
-  // ─── AUTH SCREEN ─────────────────────────────────────────────────────────────
-  function renderAuth(msg = '') {
-    document.getElementById('header-breadcrumb').classList.add('hidden')
-    document.getElementById('btn-new-project').classList.add('hidden')
-    document.getElementById('btn-logout').classList.add('hidden')
-
-    document.getElementById('app').innerHTML = `
-      <div class="flex items-center justify-center min-h-[calc(100vh-3rem)] px-4">
-        <div class="bg-[#282e33] rounded-2xl p-8 w-full max-w-sm">
-          <div class="text-center mb-6">
-            <svg class="w-10 h-10 text-blue-400 mx-auto mb-3" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M4 5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm9 0a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2V5zm0 9a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-5zM4 14a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5z"/>
-            </svg>
-            <h1 class="text-xl font-bold">My Trello</h1>
-            <p class="text-white/40 text-sm mt-1">Введи email — пришлём ссылку для входа</p>
-          </div>
-          ${msg ? `
-            <div class="bg-blue-500/10 border border-blue-500/20 text-blue-300 text-sm rounded-lg px-4 py-3 mb-4 text-center leading-relaxed">
-              ${msg}
-            </div>` : ''}
-          <div id="auth-form">
-            <input id="auth-email" type="email" placeholder="твой@email.com"
-              class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500 mb-3"/>
-            <button id="auth-btn"
-              class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg py-3 text-sm font-semibold">
-              Войти
-            </button>
-            <p id="auth-error" class="text-red-400 text-xs text-center mt-2 hidden"></p>
-          </div>
-        </div>
-      </div>`
-
-    const emailInput = document.getElementById('auth-email')
-    const btn = document.getElementById('auth-btn')
-    emailInput.focus()
-
-    async function doLogin() {
-      const email = emailInput.value.trim()
-      if (!email) { emailInput.focus(); return }
-      btn.textContent = 'Отправляем...'
-      btn.disabled = true
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.origin }
-      })
-
-      if (error) {
-        document.getElementById('auth-error').textContent = error.message
-        document.getElementById('auth-error').classList.remove('hidden')
-        btn.textContent = 'Войти'
-        btn.disabled = false
-      } else {
-        renderAuth(`Письмо отправлено на <strong>${esc(email)}</strong><br>Проверь почту и кликни на ссылку`)
-      }
-    }
-
-    btn.addEventListener('click', doLogin)
-    emailInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() })
-  }
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
   function render() {
@@ -239,7 +380,6 @@ import '../styles/global.css';
   function renderHome() {
     document.getElementById('header-breadcrumb').classList.add('hidden')
     document.getElementById('btn-new-project').classList.remove('hidden')
-    document.getElementById('btn-logout').classList.remove('hidden')
 
     const app = document.getElementById('app')
 
@@ -257,25 +397,36 @@ import '../styles/global.css';
       return
     }
 
+    const sorted = sortProjects(appData.projects)
+
     let html = `<div class="p-5 max-w-5xl mx-auto">
       <h1 class="text-lg font-bold text-white/70 mb-5">Проекты</h1>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`
 
-    for (const proj of appData.projects) {
+    for (const proj of sorted) {
       const { done, total, pct } = projectProgress(proj)
       const color = COLORS.find(c => c.id === proj.color) || COLORS[0]
       const allDone = total > 0 && done === total
+      const ago = timeAgo(proj.updatedAt)
+      const dl = deadlineInfo(proj.deadline)
+
+      const dlBadgeColor = !dl ? '' :
+        dl.urgency === 'red'    ? 'bg-red-500/25 text-red-300' :
+        dl.urgency === 'orange' ? 'bg-orange-500/25 text-orange-300' :
+        dl.urgency === 'yellow' ? 'bg-yellow-500/20 text-yellow-300' :
+                                  'bg-black/20 text-white/55'
 
       html += `
         <div data-action="open-project" data-project-id="${proj.id}"
-          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-white/5"
+          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-white/5 flex flex-col"
           style="background: linear-gradient(135deg, ${color.hex[0]}, ${color.hex[1]})">
-          <div class="px-4 pt-4 pb-3">
-            <div class="flex items-start justify-between mb-3">
+          <div class="px-4 pt-4 pb-3 flex-1">
+            <div class="flex items-start justify-between mb-2.5">
               <h2 class="font-bold text-base leading-tight pr-2">${esc(proj.title)}</h2>
               <button data-action="delete-project" data-project-id="${proj.id}"
                 class="opacity-0 group-hover:opacity-100 transition-opacity text-white/40 hover:text-white/80 text-sm flex-shrink-0 mt-0.5">✕</button>
             </div>
+            ${dl ? `<div class="mb-2.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full ${dlBadgeColor}">⏱ ${dl.label}</span></div>` : ''}
             <div class="flex items-center gap-2 text-xs text-white/60 mb-3">
               <span>${proj.subtasks.length} подзадач</span>
               <span class="text-white/20">·</span>
@@ -291,7 +442,7 @@ import '../styles/global.css';
             </div>
           </div>
           ${proj.subtasks.length ? `
-          <div class="px-4 pb-4 flex flex-wrap gap-1.5">
+          <div class="px-4 pb-3 flex flex-wrap gap-1.5">
             ${proj.subtasks.slice(0,4).map(s => {
               const sp = subtaskProgress(s)
               return `<span class="text-xs bg-black/20 text-white/60 px-2 py-0.5 rounded-full">
@@ -299,6 +450,9 @@ import '../styles/global.css';
               </span>`
             }).join('')}
             ${proj.subtasks.length > 4 ? `<span class="text-xs text-white/30 px-1">+${proj.subtasks.length-4}</span>` : ''}
+          </div>` : ''}
+          ${ago ? `<div class="px-4 pb-3 border-t border-black/15 pt-2.5 mt-1">
+            <span class="text-xs text-white/25">обновлён ${ago}</span>
           </div>` : ''}
         </div>`
     }
@@ -316,102 +470,208 @@ import '../styles/global.css';
     hdr.classList.add('flex')
     document.getElementById('header-project-name').textContent = proj.title
     document.getElementById('btn-new-project').classList.add('hidden')
-    document.getElementById('btn-logout').classList.remove('hidden')
 
     const { done, total, pct } = projectProgress(proj)
     const allDone = total > 0 && done === total
 
     document.getElementById('app').innerHTML = `
-      <div class="max-w-2xl mx-auto px-4 py-5">
-        <div class="mb-6">
-          <div class="flex items-center gap-3 mb-4">
+      <div class="max-w-5xl mx-auto px-4 py-5">
+
+        <!-- Header -->
+        <div class="mb-5">
+          <div class="flex items-center gap-3 mb-2">
             <h1 class="text-2xl font-bold flex-1">${esc(proj.title)}</h1>
             <button data-action="edit-project-title" data-project-id="${proj.id}"
-              class="text-white/30 hover:text-white/60 transition-colors text-sm px-2 py-1 rounded hover:bg-white/5">
-              ✎
-            </button>
+              class="text-white/30 hover:text-white/60 transition-colors text-sm px-2 py-1 rounded hover:bg-white/5">✎</button>
           </div>
-          <div class="bg-[#282e33] rounded-xl p-4">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-sm font-semibold text-white/70">Общий прогресс</span>
-              <span class="text-2xl font-bold ${allDone ? 'text-green-400' : 'text-white'}">${pct}%</span>
-            </div>
-            <div class="h-3 bg-white/5 rounded-full overflow-hidden mb-2">
-              <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-green-400' : 'bg-blue-500'}"
-                style="width:${pct}%"></div>
-            </div>
-            <div class="flex items-center gap-4 text-xs text-white/40">
-              <span>Выполнено: <span class="${allDone ? 'text-green-400' : 'text-white/70'} font-medium">${done}</span></span>
-              <span>Осталось: <span class="text-white/70 font-medium">${total - done}</span></span>
-              <span>Всего: <span class="text-white/70 font-medium">${total}</span></span>
-            </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            ${(() => {
+              const dl = deadlineInfo(proj.deadline)
+              const badgeColor = !dl ? 'bg-white/5 text-white/30 hover:bg-white/8 hover:text-white/50' :
+                dl.urgency === 'red'    ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30' :
+                dl.urgency === 'orange' ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30' :
+                dl.urgency === 'yellow' ? 'bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25' :
+                                          'bg-white/8 text-white/50 hover:bg-white/12'
+              return `<button data-action="edit-deadline" data-project-id="${proj.id}"
+                class="text-xs px-2.5 py-1 rounded-full transition-colors ${badgeColor} flex items-center gap-1.5">
+                <span>⏱</span>
+                <span>${dl ? dl.label : 'дедлайн'}</span>
+              </button>`
+            })()}
           </div>
         </div>
 
-        <div id="subtasks-container" class="flex flex-col gap-3">
-          ${proj.subtasks.map(st => renderSubtaskSection(proj, st)).join('')}
+        <!-- Progress -->
+        <div class="bg-[#282e33] rounded-xl p-4 mb-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-semibold text-white/70">Общий прогресс</span>
+            <span class="text-2xl font-bold ${allDone ? 'text-green-400' : 'text-white'}">${pct}%</span>
+          </div>
+          <div class="h-3 bg-white/5 rounded-full overflow-hidden mb-2">
+            <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-green-400' : 'bg-blue-500'}"
+              style="width:${pct}%"></div>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-white/40">
+            <span>Выполнено: <span class="${allDone ? 'text-green-400' : 'text-white/70'} font-medium">${done}</span></span>
+            <span>Осталось: <span class="text-white/70 font-medium">${total - done}</span></span>
+            <span>Всего: <span class="text-white/70 font-medium">${total}</span></span>
+          </div>
         </div>
 
-        <div class="mt-4">
-          <div id="add-subtask-form" class="hidden bg-[#282e33] rounded-xl p-4 mb-3">
-            <input id="new-subtask-title" type="text" placeholder="Название подзадачи..."
-              class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 mb-3"/>
-            <div class="flex gap-2">
-              <button data-action="confirm-add-subtask"
-                class="bg-blue-600 hover:bg-blue-500 transition-colors text-sm px-4 py-2 rounded-lg font-medium">Добавить</button>
-              <button data-action="cancel-add-subtask"
-                class="text-white/40 hover:text-white/70 text-sm px-3 py-2">Отмена</button>
+        <!-- Two columns -->
+        <div class="flex flex-col lg:flex-row gap-5 items-start">
+
+          <!-- LEFT: subtasks -->
+          <div class="flex-1 min-w-0">
+            <div id="subtasks-container" class="flex flex-col gap-3">
+              ${proj.subtasks.map(st => renderSubtaskSection(proj, st)).join('')}
+            </div>
+            <div class="mt-3">
+              <div id="add-subtask-form" class="hidden bg-[#282e33] rounded-xl p-4 mb-3">
+                <input id="new-subtask-title" type="text" placeholder="Название подзадачи..."
+                  class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 mb-3"/>
+                <div class="flex gap-2">
+                  <button data-action="confirm-add-subtask"
+                    class="bg-blue-600 hover:bg-blue-500 transition-colors text-sm px-4 py-2 rounded-lg font-medium">Добавить</button>
+                  <button data-action="cancel-add-subtask"
+                    class="text-white/40 hover:text-white/70 text-sm px-3 py-2">Отмена</button>
+                </div>
+              </div>
+              <button data-action="show-add-subtask"
+                class="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/8 border border-white/10 border-dashed transition-colors rounded-xl py-3 text-sm text-white/50 hover:text-white/70">
+                <span class="text-lg leading-none">+</span> Добавить подзадачу
+              </button>
             </div>
           </div>
-          <button data-action="show-add-subtask"
-            class="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/8 border border-white/10 border-dashed transition-colors rounded-xl py-3 text-sm text-white/50 hover:text-white/70">
-            <span class="text-lg leading-none">+</span> Добавить подзадачу
-          </button>
+
+          <!-- RIGHT: notes -->
+          <div class="w-full lg:w-72 flex-shrink-0">
+            ${renderNotesColumn(proj)}
+          </div>
+
         </div>
+      </div>`
+  }
+
+  function renderNotesColumn(proj) {
+    const notes = proj.notes || []
+    const notesHtml = notes.map(note => `
+      <div class="bg-[#282e33] rounded-xl overflow-hidden group/note" data-note-id="${note.id}">
+        <div class="flex items-center gap-2 px-3 pt-3 pb-2">
+          <span
+            class="font-semibold text-sm flex-1 cursor-text hover:text-blue-300 transition-colors min-w-0 truncate"
+            data-action="edit-note-title"
+            data-project-id="${proj.id}" data-note-id="${note.id}"
+          >${esc(note.title)}</span>
+          <button
+            data-action="delete-note"
+            data-project-id="${proj.id}" data-note-id="${note.id}"
+            class="opacity-0 group-hover/note:opacity-100 transition-opacity text-white/20 hover:text-red-400 text-xs flex-shrink-0">✕</button>
+        </div>
+        <div class="px-3 pb-3">
+          <textarea
+            data-action="edit-note-content"
+            data-project-id="${proj.id}" data-note-id="${note.id}"
+            placeholder="Напиши что-нибудь..."
+            class="w-full bg-[#1d2125] rounded-lg px-3 py-2.5 text-sm text-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500/50 placeholder-white/20 leading-relaxed min-h-[80px]"
+          >${esc(note.content || '')}</textarea>
+        </div>
+      </div>`).join('')
+
+    return `
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Заметки</span>
+          <button data-action="add-note" data-project-id="${proj.id}"
+            class="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium">+ Добавить</button>
+        </div>
+        <div id="notes-container" class="flex flex-col gap-3">
+          ${notesHtml}
+        </div>
+        ${notes.length === 0 ? `
+          <div class="bg-[#282e33]/50 border border-white/5 border-dashed rounded-xl p-4 text-center">
+            <p class="text-white/25 text-xs">Доступы, комменты клиента,<br>ссылки — всё сюда</p>
+          </div>` : ''}
       </div>`
   }
 
   function renderSubtaskSection(proj, st) {
     const { done, total, pct } = subtaskProgress(st)
     const allDone = total > 0 && done === total
+    const checkmark = `<svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`
 
     const tasksHtml = st.tasks.map(task => `
-      <label class="flex items-start gap-3 px-1 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer group/task">
-        <div class="relative flex-shrink-0 mt-0.5">
+      <div
+        class="flex items-center gap-1.5 rounded-lg hover:bg-white/5 group/task transition-colors"
+        draggable="true"
+        data-drag-task
+        data-proj-id="${proj.id}"
+        data-st-id="${st.id}"
+        data-task-id="${task.id}"
+      >
+        <span class="drag-handle opacity-0 group-hover/task:opacity-100 cursor-grab text-white/20 select-none text-base px-1 flex-shrink-0 transition-opacity">⠿</span>
+        <label class="flex items-center flex-shrink-0 cursor-pointer py-1.5 pr-2">
           <input type="checkbox" ${task.done ? 'checked' : ''}
             data-action="toggle-task"
             data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
             class="sr-only peer"/>
           <div class="w-4 h-4 rounded border-2 border-white/25 peer-checked:bg-blue-500 peer-checked:border-blue-500
             flex items-center justify-center transition-all pointer-events-none">
-            ${task.done ? `<svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>` : ''}
+            ${task.done ? checkmark : ''}
           </div>
-        </div>
-        <span class="text-sm flex-1 leading-relaxed ${task.done ? 'line-through text-white/30' : 'text-white/80'}">${esc(task.title)}</span>
+        </label>
+        <span
+          class="flex-1 text-sm py-1.5 cursor-text select-none ${task.done ? 'line-through text-white/30' : 'text-white/80'}"
+          data-action="edit-task-title"
+          data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
+        >${esc(task.title)}</span>
         <button data-action="delete-task"
           data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
-          class="opacity-0 group-hover/task:opacity-100 transition-opacity text-white/25 hover:text-red-400 text-xs flex-shrink-0 mt-0.5 px-1">✕</button>
-      </label>`).join('')
+          class="opacity-0 group-hover/task:opacity-100 transition-opacity text-white/25 hover:text-red-400 text-xs flex-shrink-0 px-1.5 py-1.5">✕</button>
+      </div>`).join('')
+
+    const isCollapsed = collapsed.has(st.id)
 
     return `
-      <div class="bg-[#282e33] rounded-xl overflow-hidden" data-subtask-id="${st.id}">
-        <div class="px-4 pt-3.5 pb-2">
-          <div class="flex items-center gap-2 mb-2.5">
+      <div
+        class="bg-[#282e33] rounded-xl overflow-visible group/st"
+        draggable="true"
+        data-drag-subtask
+        data-proj-id="${proj.id}"
+        data-st-id="${st.id}"
+      >
+        <div class="px-3 pt-3 ${isCollapsed ? 'pb-3' : 'pb-2'}">
+          <div class="flex items-center gap-1.5 mb-2.5">
+            <span class="drag-handle opacity-0 group-hover/st:opacity-100 cursor-grab text-white/20 select-none text-base px-0.5 flex-shrink-0 transition-opacity">⠿</span>
+            <!-- Collapse toggle -->
+            <button
+              data-action="toggle-collapse"
+              data-subtask-id="${st.id}"
+              class="flex-shrink-0 text-white/25 hover:text-white/60 transition-all"
+              title="${isCollapsed ? 'Развернуть' : 'Свернуть'}"
+            >
+              <svg class="w-3.5 h-3.5 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}"
+                fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+            </button>
             <div class="w-2 h-2 rounded-full flex-shrink-0 ${allDone ? 'bg-green-400' : done > 0 ? 'bg-blue-400' : 'bg-white/20'}"></div>
-            <h3 class="font-semibold text-sm flex-1 cursor-pointer hover:text-blue-300 transition-colors"
-              data-action="edit-subtask-title" data-project-id="${proj.id}" data-subtask-id="${st.id}"
+            <h3
+              class="font-semibold text-sm flex-1 cursor-text hover:text-blue-300 transition-colors min-w-0"
+              data-action="edit-subtask-title"
+              data-project-id="${proj.id}" data-subtask-id="${st.id}"
             >${esc(st.title)}</h3>
-            <span class="text-xs text-white/35 flex-shrink-0">${done}/${total}</span>
+            <span class="text-xs ${allDone ? 'text-green-400' : 'text-white/35'} flex-shrink-0">${done}/${total}</span>
             <button data-action="delete-subtask" data-project-id="${proj.id}" data-subtask-id="${st.id}"
-              class="text-white/20 hover:text-red-400 transition-colors text-xs flex-shrink-0 ml-1">✕</button>
+              class="text-white/20 hover:text-red-400 transition-colors text-xs flex-shrink-0 ml-1 px-1">✕</button>
           </div>
           <div class="h-1 bg-white/5 rounded-full overflow-hidden">
             <div class="h-full rounded-full transition-all duration-400 ${allDone ? 'bg-green-400' : 'bg-blue-400'}"
               style="width:${pct}%"></div>
           </div>
         </div>
-        <div class="px-3 pt-1 pb-2 flex flex-col">${tasksHtml}</div>
+        ${isCollapsed ? '' : `
+        <div class="px-2 pt-1 pb-2 flex flex-col">${tasksHtml}</div>
         <div class="px-4 pb-3.5">
           <div id="add-task-form-${st.id}" class="hidden mb-2">
             <div class="flex gap-2">
@@ -428,14 +688,113 @@ import '../styles/global.css';
             class="text-xs text-white/35 hover:text-white/60 hover:bg-white/5 transition-colors rounded-lg px-2 py-1.5 flex items-center gap-1.5">
             <span class="text-sm leading-none">+</span> Добавить таск
           </button>
-        </div>
+        </div>`}
       </div>`
   }
 
   function rerenderProject() {
     const scrollY = window.scrollY
     renderProject()
+    initDragDrop()
     window.scrollTo({ top: scrollY })
+  }
+
+  // ─── DRAG & DROP ─────────────────────────────────────────────────────────────
+  let dragState = null
+  let allowDrag = false
+
+  function clearDragOver() {
+    document.querySelectorAll('.drag-over-above, .drag-over-below')
+      .forEach(el => el.classList.remove('drag-over-above', 'drag-over-below'))
+  }
+
+  function initDragDrop() {
+    const container = document.getElementById('subtasks-container')
+    if (!container) return
+
+    // ── subtasks ──
+    container.querySelectorAll('[data-drag-subtask]').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        allowDrag = !!e.target.closest('.drag-handle')
+      })
+      el.addEventListener('dragstart', e => {
+        if (!allowDrag) { e.preventDefault(); return }
+        dragState = { type: 'subtask', projId: el.dataset.projId, stId: el.dataset.stId }
+        el.classList.add('dragging')
+        e.dataTransfer.effectAllowed = 'move'
+      })
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging')
+        clearDragOver()
+        dragState = null
+      })
+      el.addEventListener('dragover', e => {
+        if (dragState?.type !== 'subtask' || el.dataset.stId === dragState.stId) return
+        e.preventDefault()
+        clearDragOver()
+        const rect = el.getBoundingClientRect()
+        el.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-above' : 'drag-over-below')
+      })
+      el.addEventListener('drop', e => {
+        if (dragState?.type !== 'subtask') return
+        e.preventDefault()
+        const isBelow = el.classList.contains('drag-over-below')
+        clearDragOver()
+        const proj = getProject(dragState.projId)
+        const fromIdx = proj.subtasks.findIndex(s => s.id === dragState.stId)
+        const [item] = proj.subtasks.splice(fromIdx, 1)
+        let toIdx = proj.subtasks.findIndex(s => s.id === el.dataset.stId)
+        if (toIdx === -1) toIdx = proj.subtasks.length
+        else if (isBelow) toIdx++
+        proj.subtasks.splice(toIdx, 0, item)
+        saveProject(); rerenderProject()
+      })
+    })
+
+    // ── tasks ──
+    container.querySelectorAll('[data-drag-task]').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        allowDrag = !!e.target.closest('.drag-handle')
+      })
+      el.addEventListener('dragstart', e => {
+        if (!allowDrag) { e.preventDefault(); return }
+        e.stopPropagation()
+        dragState = { type: 'task', projId: el.dataset.projId, stId: el.dataset.stId, taskId: el.dataset.taskId }
+        el.classList.add('dragging')
+        e.dataTransfer.effectAllowed = 'move'
+      })
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging')
+        clearDragOver()
+        dragState = null
+      })
+      el.addEventListener('dragover', e => {
+        if (dragState?.type !== 'task' || el.dataset.taskId === dragState.taskId) return
+        e.preventDefault()
+        e.stopPropagation()
+        clearDragOver()
+        const rect = el.getBoundingClientRect()
+        el.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-above' : 'drag-over-below')
+      })
+      el.addEventListener('drop', e => {
+        if (dragState?.type !== 'task') return
+        e.preventDefault()
+        e.stopPropagation()
+        const isBelow = el.classList.contains('drag-over-below')
+        clearDragOver()
+        const proj = getProject(dragState.projId)
+        const srcSt = proj.subtasks.find(s => s.id === dragState.stId)
+        const dstSt = proj.subtasks.find(s => s.id === el.dataset.stId)
+        const fromIdx = srcSt.tasks.findIndex(t => t.id === dragState.taskId)
+        if (fromIdx === -1) return
+        const [task] = srcSt.tasks.splice(fromIdx, 1)
+        let toIdx = dstSt.tasks.findIndex(t => t.id === el.dataset.taskId)
+        if (toIdx === -1) toIdx = dstSt.tasks.length
+        else if (isBelow) toIdx++
+        dstSt.tasks.splice(toIdx, 0, task)
+        saveProject(); rerenderProject()
+      })
+    })
   }
 
   // ─── MODALS ──────────────────────────────────────────────────────────────────
@@ -504,15 +863,86 @@ import '../styles/global.css';
     if (a === 'confirm-new-project') {
       const title = document.getElementById('new-proj-input').value.trim()
       if (!title) { document.getElementById('new-proj-input').focus(); return }
-      const proj = { id: uid(), title, color: window._newProjColor || 'blue', subtasks: [] }
+      const proj = { id: uid(), title, color: window._newProjColor || 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: null }
       appData.projects.push(proj)
       save(); closeModal(); go(`p/${proj.id}`); return
     }
     if (a === 'edit-project-title') {
       const proj = getProject(el.dataset.projectId)
-      const t = prompt('Переименовать:', proj.title)
-      if (t?.trim()) { proj.title = t.trim(); save(); rerenderProject() }
+      const h1 = document.querySelector('h1.text-2xl')
+      if (!h1) return
+      const inp = document.createElement('input')
+      inp.type = 'text'; inp.value = proj.title
+      inp.className = 'text-2xl font-bold bg-transparent border-b-2 border-blue-500 focus:outline-none flex-1 w-full'
+      h1.replaceWith(inp); inp.focus(); inp.select()
+      const done = () => { const v = inp.value.trim(); if (v) { proj.title = v; saveProject() }; rerenderProject() }
+      inp.addEventListener('blur', done)
+      inp.addEventListener('keydown', e2 => { if (e2.key === 'Enter') { e2.preventDefault(); done() } if (e2.key === 'Escape') rerenderProject() })
       return
+    }
+    if (a === 'edit-deadline') {
+      const proj = getProject(el.dataset.projectId)
+      openModal(`
+        <div class="p-5">
+          <h2 class="text-base font-bold mb-1">Дедлайн проекта</h2>
+          <p class="text-xs text-white/40 mb-4">Установи дату — проект появится выше в списке когда срок приближается</p>
+          <input id="deadline-input" type="date"
+            value="${proj.deadline || ''}"
+            class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 mb-4
+              [color-scheme:dark]"/>
+          <div class="flex gap-2">
+            <button id="deadline-save"
+              class="flex-1 bg-blue-600 hover:bg-blue-500 transition-colors rounded-xl py-2.5 text-sm font-semibold">
+              Сохранить
+            </button>
+            ${proj.deadline ? `<button id="deadline-clear"
+              class="text-white/30 hover:text-red-400 transition-colors text-sm px-4 py-2.5 rounded-xl hover:bg-white/5">
+              Убрать
+            </button>` : ''}
+          </div>
+        </div>`)
+      document.getElementById('deadline-save').addEventListener('click', () => {
+        const val = document.getElementById('deadline-input').value
+        proj.deadline = val || null
+        save(); closeModal(); rerenderProject()
+      })
+      document.getElementById('deadline-clear')?.addEventListener('click', () => {
+        proj.deadline = null
+        save(); closeModal(); rerenderProject()
+      })
+      return
+    }
+    // ── NOTES ──
+    if (a === 'add-note') {
+      const proj = getProject(el.dataset.projectId)
+      if (!proj.notes) proj.notes = []
+      proj.notes.push({ id: uid(), title: '📌 Заметка', content: '' })
+      saveProject(); rerenderProject(); return
+    }
+    if (a === 'delete-note') {
+      const proj = getProject(el.dataset.projectId)
+      if (!confirm('Удалить заметку?')) return
+      proj.notes = (proj.notes || []).filter(n => n.id !== el.dataset.noteId)
+      saveProject(); rerenderProject(); return
+    }
+    if (a === 'edit-note-title') {
+      const proj = getProject(el.dataset.projectId)
+      const note = (proj.notes || []).find(n => n.id === el.dataset.noteId)
+      const inp = document.createElement('input')
+      inp.type = 'text'; inp.value = note.title
+      inp.className = 'font-semibold text-sm flex-1 bg-[#1d2125] border border-blue-500 rounded px-2 py-0.5 focus:outline-none min-w-0 mr-2'
+      el.replaceWith(inp); inp.focus(); inp.select()
+      const done = () => { const v = inp.value.trim(); if (v) { note.title = v; saveProject() }; rerenderProject() }
+      inp.addEventListener('blur', done)
+      inp.addEventListener('keydown', e2 => { if (e2.key === 'Enter') { e2.preventDefault(); done() } if (e2.key === 'Escape') rerenderProject() })
+      return
+    }
+
+    if (a === 'toggle-collapse') {
+      const stId = el.dataset.subtaskId
+      if (collapsed.has(stId)) collapsed.delete(stId)
+      else collapsed.add(stId)
+      rerenderProject(); return
     }
     if (a === 'show-add-subtask') {
       document.getElementById('add-subtask-form').classList.remove('hidden')
@@ -529,13 +959,18 @@ import '../styles/global.css';
       if (!title) { inp.focus(); return }
       const proj = getProject(currentProjectId)
       proj.subtasks.push({ id: uid(), title, tasks: [] })
-      save(); rerenderProject(); return
+      saveProject(); rerenderProject(); return
     }
     if (a === 'edit-subtask-title') {
       const proj = getProject(el.dataset.projectId)
       const st = proj.subtasks.find(s => s.id === el.dataset.subtaskId)
-      const t = prompt('Переименовать:', st.title)
-      if (t?.trim()) { st.title = t.trim(); save(); rerenderProject() }
+      const inp = document.createElement('input')
+      inp.type = 'text'; inp.value = st.title
+      inp.className = 'font-semibold text-sm flex-1 bg-[#1d2125] border border-blue-500 rounded px-2 py-0.5 focus:outline-none min-w-0 mr-2'
+      el.replaceWith(inp); inp.focus(); inp.select()
+      const done = () => { const v = inp.value.trim(); if (v) { st.title = v; saveProject() }; rerenderProject(); initDragDrop() }
+      inp.addEventListener('blur', done)
+      inp.addEventListener('keydown', e2 => { if (e2.key === 'Enter') { e2.preventDefault(); done() } if (e2.key === 'Escape') { rerenderProject(); initDragDrop() } })
       return
     }
     if (a === 'delete-subtask') {
@@ -543,7 +978,7 @@ import '../styles/global.css';
       const st = proj.subtasks.find(s => s.id === el.dataset.subtaskId)
       if (st.tasks.length > 0 && !confirm(`Удалить подзадачу "${st.title}"?`)) return
       proj.subtasks = proj.subtasks.filter(s => s.id !== el.dataset.subtaskId)
-      save(); rerenderProject(); return
+      saveProject(); rerenderProject(); return
     }
     if (a === 'show-add-task') {
       const stId = el.dataset.subtaskId
@@ -564,15 +999,38 @@ import '../styles/global.css';
       const proj = getProject(projectId)
       const st = proj.subtasks.find(s => s.id === subtaskId)
       st.tasks.push({ id: uid(), title, done: false })
-      save(); rerenderProject(); return
+      saveProject(); rerenderProject(); return
+    }
+    if (a === 'edit-task-title') {
+      const { projectId, subtaskId, taskId } = el.dataset
+      const proj = getProject(projectId)
+      const st = proj.subtasks.find(s => s.id === subtaskId)
+      const task = st.tasks.find(t => t.id === taskId)
+      const inp = document.createElement('input')
+      inp.type = 'text'; inp.value = task.title
+      inp.className = 'flex-1 text-sm bg-[#1d2125] border border-blue-500 rounded px-2 py-0.5 focus:outline-none'
+      el.replaceWith(inp); inp.focus(); inp.select()
+      const done = () => { const v = inp.value.trim(); if (v) { task.title = v; saveProject() }; rerenderProject(); initDragDrop() }
+      inp.addEventListener('blur', done)
+      inp.addEventListener('keydown', e2 => { if (e2.key === 'Enter') { e2.preventDefault(); done() } if (e2.key === 'Escape') { rerenderProject(); initDragDrop() } })
+      return
     }
     if (a === 'delete-task') {
       const { projectId, subtaskId, taskId } = el.dataset
       const proj = getProject(projectId)
       const st = proj.subtasks.find(s => s.id === subtaskId)
       st.tasks = st.tasks.filter(t => t.id !== taskId)
-      save(); rerenderProject(); return
+      saveProject(); rerenderProject(); return
     }
+  })
+
+  document.addEventListener('input', e => {
+    const ta = e.target.closest('[data-action="edit-note-content"]')
+    if (!ta) return
+    const { projectId, noteId } = ta.dataset
+    const proj = getProject(projectId)
+    const note = (proj.notes || []).find(n => n.id === noteId)
+    if (note) { note.content = ta.value; saveProject() }
   })
 
   document.addEventListener('change', e => {
@@ -583,14 +1041,11 @@ import '../styles/global.css';
     const st = proj.subtasks.find(s => s.id === subtaskId)
     const task = st.tasks.find(t => t.id === taskId)
     task.done = inp.checked
-    save(); rerenderProject()
+    saveProject(); rerenderProject()
   })
 
   document.getElementById('btn-home').addEventListener('click', () => go(''))
   document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal)
-  document.getElementById('btn-logout').addEventListener('click', async () => {
-    await supabase.auth.signOut()
-  })
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.id === 'new-subtask-title') {
@@ -606,23 +1061,47 @@ import '../styles/global.css';
     }
   })
 
-  // ─── INIT ────────────────────────────────────────────────────────────────────
-  document.getElementById('app').innerHTML = `
-    <div class="flex items-center justify-center min-h-[calc(100vh-3rem)]">
-      <div class="text-white/20 text-sm">Загрузка...</div>
-    </div>`
+  // ─── LOGOUT ──────────────────────────────────────────────────────────────────
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await sb.auth.signOut()
+  })
 
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    currentSession = session
+  // ─── INIT ────────────────────────────────────────────────────────────────────
+  ;(async () => {
+    // Show loading state
+    document.getElementById('app').innerHTML = `
+      <div class="flex items-center justify-center min-h-[60vh]">
+        <div class="text-white/30 text-sm">Загрузка...</div>
+      </div>`
+
+    // Reliable init: getSession first, then listen for changes
+    const { data: { session } } = await sb.auth.getSession()
+
     if (session) {
+      currentSession = session
+      showHeaderAuth(session)
       await loadFromDB()
       route()
+      window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
     } else {
       renderAuth()
     }
-  })
 
-  window.addEventListener('hashchange', route)
+    sb.auth.onAuthStateChange(async (event, session) => {
+      currentSession = session
+      if (event === 'SIGNED_IN' && session) {
+        showHeaderAuth(session)
+        await loadFromDB()
+        route()
+        window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
+      } else if (event === 'SIGNED_OUT') {
+        currentSession = null
+        currentProjectId = null
+        appData = { projects: [] }
+        renderAuth()
+      }
+    })
+  })()
   </script>
 </body>
 </html>

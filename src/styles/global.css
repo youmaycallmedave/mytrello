@@ -45,3 +45,7 @@ textarea {
 .board-bg-teal     { background: linear-gradient(135deg, #134e4a 0%, #0f766e 100%); }
 .board-bg-pink     { background: linear-gradient(135deg, #831843 0%, #9d174d 100%); }
 .board-bg-slate    { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+
+.drag-over-above { border-top: 2px solid #60a5fa !important; border-radius: 0; }
+.drag-over-below { border-bottom: 2px solid #60a5fa !important; border-radius: 0; }
+.dragging { opacity: 0.35 !important; }

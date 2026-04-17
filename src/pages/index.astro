@@ -72,6 +72,7 @@ import '../styles/global.css';
   let saveTimer = null
   let dbSaveTimer = null
   let currentSession = null
+  let dataLoaded = false
   const collapsed = new Set()
 
   // ─── UTILS ───────────────────────────────────────────────────────────────────
@@ -1079,6 +1080,7 @@ import '../styles/global.css';
 
     if (session) {
       currentSession = session
+      dataLoaded = true
       showHeaderAuth(session)
       await loadFromDB()
       route()
@@ -1089,12 +1091,14 @@ import '../styles/global.css';
 
     sb.auth.onAuthStateChange(async (event, session) => {
       currentSession = session
-      if (event === 'SIGNED_IN' && session) {
+      if (event === 'SIGNED_IN' && session && !dataLoaded) {
+        dataLoaded = true
         showHeaderAuth(session)
         await loadFromDB()
         route()
         window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
       } else if (event === 'SIGNED_OUT') {
+        dataLoaded = false
         currentSession = null
         currentProjectId = null
         appData = { projects: [] }

@@ -905,37 +905,40 @@ import '../styles/global.css';
     openModal(`
       <div class="p-5">
         <h2 class="text-base font-bold mb-4">Новый проект</h2>
-        <div class="flex flex-wrap gap-2 mb-4">
-          ${COLORS.map(c => `
-            <div class="w-8 h-8 rounded-lg cursor-pointer ring-2 ring-transparent hover:ring-white/40 transition-all color-opt"
-              data-color="${c.id}" style="background: linear-gradient(135deg, ${c.hex[0]}, ${c.hex[1]})"></div>`).join('')}
-        </div>
-        <div id="proj-preview" class="rounded-xl h-14 mb-4 flex items-center px-4 transition-all"
-          style="background: linear-gradient(135deg, ${COLORS[0].hex[0]}, ${COLORS[0].hex[1]})">
-          <span id="proj-preview-name" class="font-bold text-white/80 text-sm">Название проекта</span>
-        </div>
         <input id="new-proj-input" type="text" placeholder="Название проекта..."
-          class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 mb-4"/>
+          class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 mb-3"/>
+        <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Папка</label>
+        <div class="flex flex-wrap gap-2 mb-3">
+          ${Object.entries(STATUSES).map(([key, s]) => `
+            <button data-status-opt="${key}"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-all
+                border-transparent bg-white/5 text-white/50 hover:text-white/80">
+              <span class="w-1.5 h-1.5 rounded-full ${s.dot}"></span>
+              ${s.label}
+            </button>`).join('')}
+        </div>
+        <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Дедлайн <span class="normal-case text-white/20">(необязательно)</span></label>
+        <input id="new-proj-deadline" type="date"
+          class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 mb-4 [color-scheme:dark]"/>
         <button data-action="confirm-new-project"
           class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg py-2.5 text-sm font-semibold">
           Создать проект
         </button>
       </div>`)
 
-    window._newProjColor = 'blue'
-    document.querySelectorAll('.color-opt').forEach(el => {
-      el.addEventListener('click', () => {
-        window._newProjColor = el.dataset.color
-        const c = COLORS.find(x => x.id === el.dataset.color)
-        document.getElementById('proj-preview').style.background =
-          `linear-gradient(135deg, ${c.hex[0]}, ${c.hex[1]})`
+    window._newProjStatus = 'inprogress'
+    // select default
+    document.querySelector(`[data-status-opt="inprogress"]`)?.classList.add('border-blue-500', 'text-white', '!bg-blue-500/15')
+
+    document.querySelectorAll('[data-status-opt]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-status-opt]').forEach(b =>
+          b.classList.remove('border-blue-500', 'text-white', '!bg-blue-500/15'))
+        btn.classList.add('border-blue-500', 'text-white', '!bg-blue-500/15')
+        window._newProjStatus = btn.dataset.statusOpt
       })
     })
-    const inp = document.getElementById('new-proj-input')
-    inp.addEventListener('input', () => {
-      document.getElementById('proj-preview-name').textContent = inp.value || 'Название проекта'
-    })
-    setTimeout(() => inp.focus(), 40)
+    setTimeout(() => document.getElementById('new-proj-input').focus(), 40)
   }
 
   // ─── EVENTS ──────────────────────────────────────────────────────────────────
@@ -966,7 +969,8 @@ import '../styles/global.css';
     if (a === 'confirm-new-project') {
       const title = document.getElementById('new-proj-input').value.trim()
       if (!title) { document.getElementById('new-proj-input').focus(); return }
-      const proj = { id: uid(), title, color: window._newProjColor || 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: null, status: 'inprogress' }
+      const deadline = document.getElementById('new-proj-deadline')?.value || null
+      const proj = { id: uid(), title, color: 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: deadline || null, status: window._newProjStatus || 'inprogress' }
       appData.projects.push(proj)
       save(); closeModal(); go(`p/${proj.id}`); return
     }

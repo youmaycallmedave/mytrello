@@ -65,6 +65,12 @@ import '../styles/global.css';
     { id: 'slate',  hex: ['#0f172a','#1e293b'] },
   ]
 
+  const PRIORITIES = {
+    1: { label: 'Низкий',   color: '#22c55e', ring: 'ring-green-400',  bg: 'bg-green-500',  border: '#22c55e' },
+    2: { label: 'Средний',  color: '#eab308', ring: 'ring-yellow-400', bg: 'bg-yellow-400', border: '#eab308' },
+    3: { label: 'Высокий',  color: '#ef4444', ring: 'ring-red-400',    bg: 'bg-red-500',    border: '#ef4444' },
+  }
+
   const STATUSES = {
     todo:       { label: 'Нужно сделать', color: 'bg-gray-100 text-gray-500',           dot: 'bg-gray-400' },
     inprogress: { label: 'В работе',      color: 'bg-blue-100 text-blue-700',            dot: 'bg-blue-500' },
@@ -140,7 +146,7 @@ import '../styles/global.css';
     appData = {
       projects: [
         {
-          id: uid(), title: 'Собрать сайт', color: 'blue', updatedAt: Date.now(), deadline: null, status: 'inprogress',
+          id: uid(), title: 'Собрать сайт', color: 'blue', updatedAt: Date.now(), deadline: null, status: 'inprogress', priority: 2,
           subtasks: [
             {
               id: uid(), title: 'Главная страница',
@@ -417,7 +423,9 @@ import '../styles/global.css';
       return
     }
 
-    const sorted = appData.projects.filter(p => (p.status || 'inprogress') === homeTab)
+    const sorted = appData.projects
+      .filter(p => (p.status || 'inprogress') === homeTab)
+      .sort((a, b) => (b.priority || 2) - (a.priority || 2))
     const counts = {}
     for (const s of Object.keys(STATUSES)) counts[s] = appData.projects.filter(p => (p.status || 'inprogress') === s).length
 
@@ -453,8 +461,8 @@ import '../styles/global.css';
 
       html += `
         <div data-action="open-project" data-project-id="${proj.id}"
-          draggable="true" data-drag-card
-          class="rounded-xl cursor-grab hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
+          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white"
+          style="border-left: 4px solid ${PRIORITIES[proj.priority || 2].border}">
           <div class="px-4 pt-4 pb-3 flex-1">
             <div class="flex items-start justify-between mb-2.5">
               <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
@@ -494,8 +502,20 @@ import '../styles/global.css';
             ${proj.subtasks.length > 4 ? `<span class="text-xs text-gray-400 px-1">+${proj.subtasks.length-4}</span>` : ''}
           </div>` : ''}
           <div class="px-4 pb-3 pt-2 flex items-center justify-between border-t border-black/6 mt-1">
-            <span class="text-xs text-gray-400">с последнего апдейта</span>
-            <span id="elapsed-${proj.id}" class="text-xs font-mono font-medium text-gray-600 tabular-nums">
+            <div class="flex items-center gap-1.5">
+              ${[1,2,3].map(p => {
+                const pr = PRIORITIES[p]
+                const active = (proj.priority || 2) === p
+                return `<button
+                  data-action="set-priority" data-project-id="${proj.id}" data-priority="${p}"
+                  class="w-5 h-5 rounded-full border-2 transition-all hover:scale-110 flex-shrink-0
+                    ${active ? pr.bg + ' border-transparent' : 'bg-transparent border-gray-300 hover:border-gray-400'}"
+                  title="${pr.label}"
+                  style="${active ? '' : ''}"></button>`
+              }).join('')}
+              <span class="text-xs ml-0.5" style="color:${PRIORITIES[proj.priority || 2].color}">${PRIORITIES[proj.priority || 2].label}</span>
+            </div>
+            <span id="elapsed-${proj.id}" class="text-xs font-mono font-medium text-gray-400 tabular-nums">
               ${elapsedSince(proj.updatedAt)}
             </span>
           </div>
@@ -745,106 +765,10 @@ import '../styles/global.css';
   }
 
   function initCardDrag() {
-    const container = document.getElementById('cards-container')
-    if (!container) return
     const tabs = document.querySelectorAll('[data-drop-tab]')
-    let srcId = null
-
-    // — placeholder —
-    const ph = document.createElement('div')
-    ph.className = 'rounded-xl border-2 border-dashed border-blue-400/70 bg-blue-400/6'
-    function removePh() { ph.parentNode && ph.remove() }
-
-    // Cards excluding the dragged one (for position math)
-    function otherCards() {
-      return [...container.querySelectorAll('[data-drag-card]')]
-        .filter(c => c.dataset.projectId !== srcId)
-    }
-
-    // Which index to insert before, based on cursor position in the grid
-    function insertIdx(x, y) {
-      const cards = otherCards()
-      for (let i = 0; i < cards.length; i++) {
-        const r = cards[i].getBoundingClientRect()
-        if (y > r.bottom) continue          // cursor is below this card — keep scanning
-        if (x < r.left + r.width / 2) return i   // left half → before card i
-        // right half: check if next card is on the same row
-        const nr = cards[i + 1]?.getBoundingClientRect()
-        if (!nr || nr.top > r.top + 4) return i + 1  // last in row → after it
-        // else continue to next card in same row
-      }
-      return cards.length
-    }
-
-    // Move placeholder to idx position among otherCards
-    function movePh(idx) {
-      const cards = otherCards()
-      if (idx >= cards.length) {
-        if (ph.previousSibling !== cards[cards.length - 1]) container.appendChild(ph)
-      } else {
-        if (ph.nextSibling !== cards[idx]) container.insertBefore(ph, cards[idx])
-      }
-    }
-
-    // Resolve placeholder's position to an index in appData.projects
-    function phToProjectIdx() {
-      if (!ph.parentNode) return appData.projects.length
-      for (let el = ph.nextSibling; el; el = el.nextSibling) {
-        const id = el.dataset?.projectId
-        if (id && id !== srcId) return appData.projects.findIndex(p => p.id === id)
-      }
-      return appData.projects.length
-    }
-
-    // Commit reorder
-    function commit(projId) {
-      const toIdx = phToProjectIdx()
-      removePh()
-      if (!projId) { renderHome(); return }
-      const fromIdx = appData.projects.findIndex(p => p.id === projId)
-      if (fromIdx === -1) { renderHome(); return }
-      const [proj] = appData.projects.splice(fromIdx, 1)
-      const adj = toIdx > fromIdx ? toIdx - 1 : toIdx
-      appData.projects.splice(Math.max(0, adj), 0, proj)
-      save(); renderHome()
-    }
-
-    // — card events —
-    container.querySelectorAll('[data-drag-card]').forEach(card => {
-      card.addEventListener('dragstart', e => {
-        srcId = card.dataset.projectId
-        e.dataTransfer.setData('text/plain', srcId)
-        e.dataTransfer.effectAllowed = 'move'
-        ph.style.minHeight = card.offsetHeight + 'px'
-        setTimeout(() => { card.style.opacity = '0.2'; card.style.pointerEvents = 'none' }, 0)
-        tabs.forEach(t => t.classList.add('ring-2', 'ring-white/20'))
-      })
-      card.addEventListener('dragend', () => {
-        card.style.opacity = ''; card.style.pointerEvents = ''
-        removePh(); srcId = null
-        tabs.forEach(t => t.classList.remove('ring-2','ring-white/20','ring-white/60','bg-white/15','scale-105'))
-      })
-    })
-
-    // — container handles dragover/drop (cards have pointer-events:none during drag) —
-    container.addEventListener('dragover', e => {
-      if (!srcId) return
-      e.preventDefault()
-      movePh(insertIdx(e.clientX, e.clientY))
-    })
-    container.addEventListener('dragleave', e => {
-      if (!container.contains(e.relatedTarget)) removePh()
-    })
-    container.addEventListener('drop', e => {
-      e.preventDefault()
-      commit(e.dataTransfer.getData('text/plain'))
-    })
-
-    // — tab drop zones —
     tabs.forEach(tab => {
       tab.addEventListener('dragover', e => {
         e.preventDefault()
-        removePh()
         tabs.forEach(t => t.classList.remove('ring-white/60','bg-white/15','scale-105'))
         tab.classList.add('ring-white/60','bg-white/15','scale-105')
       })
@@ -854,7 +778,6 @@ import '../styles/global.css';
       })
       tab.addEventListener('drop', e => {
         e.preventDefault()
-        removePh(); srcId = null
         const projId = e.dataTransfer.getData('text/plain')
         const proj = getProject(projId)
         if (proj && proj.status !== tab.dataset.dropTab) { proj.status = tab.dataset.dropTab; save() }
@@ -1026,6 +949,12 @@ import '../styles/global.css';
     if (!el) return
     const a = el.dataset.action
 
+    if (a === 'set-priority') {
+      e.stopPropagation()
+      const proj = getProject(el.dataset.projectId)
+      if (proj) { proj.priority = Number(el.dataset.priority); save(); renderHome() }
+      return
+    }
     if (a === 'set-tab') { homeTab = el.dataset.tab; renderHome(); return }
     if (a === 'cycle-status') {
       e.stopPropagation()
@@ -1047,7 +976,7 @@ import '../styles/global.css';
       const title = document.getElementById('new-proj-input').value.trim()
       if (!title) { document.getElementById('new-proj-input').focus(); return }
       const deadline = document.getElementById('new-proj-deadline')?.value || null
-      const proj = { id: uid(), title, color: 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: deadline || null, status: window._newProjStatus || 'inprogress' }
+      const proj = { id: uid(), title, color: 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: deadline || null, status: window._newProjStatus || 'inprogress', priority: 2 }
       appData.projects.push(proj)
       save(); closeModal(); go(`p/${proj.id}`); return
     }

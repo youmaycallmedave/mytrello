@@ -281,7 +281,7 @@ import '../styles/global.css';
       const secs = Math.floor((Date.now() - activeTimer.startedAt) / 1000)
       const el = document.getElementById('header-timer-display')
       if (el) el.textContent = fmtDuration(secs)
-      document.title = `▶ ${activeTimer.projTitle} → ${activeTimer.taskTitle} — ${fmtDuration(secs)}`
+      document.title = `▶ ${activeTimer.projTitle} › ${activeTimer.stTitle} › ${activeTimer.taskTitle} — ${fmtDuration(secs)}`
       setFavicon(true, secs)
     }, 1000)
   }

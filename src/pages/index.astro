@@ -22,7 +22,17 @@ import '../styles/global.css';
       <span class="text-white/30">/</span>
       <span id="header-project-name" class="text-white/70 truncate"></span>
     </div>
+    <div id="header-timer" class="hidden items-center gap-2 text-xs bg-red-500/10 border border-red-500/15 px-2.5 py-1 rounded-lg">
+      <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse flex-shrink-0"></span>
+      <span id="header-timer-task" class="truncate max-w-[110px] text-white/60"></span>
+      <span id="header-timer-display" class="font-mono font-medium tabular-nums text-red-300"></span>
+      <button id="btn-stop-timer" class="text-red-400/70 hover:text-red-300 transition-colors leading-none ml-0.5">⏹</button>
+    </div>
     <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+      <button id="btn-history"
+        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
+        История
+      </button>
       <span id="header-user-email" class="hidden text-xs text-white/30 max-w-[160px] truncate"></span>
       <button id="btn-new-project"
         class="hidden text-xs bg-blue-600 hover:bg-blue-500 transition-colors px-3 py-1.5 rounded-md font-medium">
@@ -82,6 +92,8 @@ const STATUSES = {
   let currentSession = null
   let dataLoaded = false
   const collapsed = new Set()
+  let activeTimer = null  // { projId, stId, taskId, projTitle, stTitle, taskTitle, startedAt }
+  let timerInterval = null
 
   // ─── UTILS ───────────────────────────────────────────────────────────────────
   function uid() {
@@ -198,6 +210,231 @@ const STATUSES = {
     return `${m}м`
   }
 
+  // ─── TIMER ───────────────────────────────────────────────────────────────────
+  function fmtDuration(seconds) {
+    if (seconds < 60) return `${seconds}с`
+    const m = Math.floor(seconds / 60)
+    const h = Math.floor(m / 60)
+    if (h > 0) return `${h}ч ${m % 60}м`
+    return `${m}м`
+  }
+
+  function fmtHHMM(date) {
+    return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`
+  }
+
+  function startTimerTick() {
+    clearInterval(timerInterval)
+    timerInterval = setInterval(() => {
+      if (!activeTimer) { clearInterval(timerInterval); timerInterval = null; return }
+      const el = document.getElementById('header-timer-display')
+      if (el) el.textContent = fmtDuration(Math.floor((Date.now() - activeTimer.startedAt) / 1000))
+    }, 1000)
+  }
+
+  function updateTimerButtons() {
+    document.querySelectorAll('[data-timer-task-id]').forEach(btn => {
+      const isActive = activeTimer &&
+        btn.dataset.timerTaskId === activeTimer.taskId &&
+        btn.dataset.timerStId === activeTimer.stId
+      if (isActive) {
+        btn.textContent = '⏹'
+        btn.className = btn.className
+          .replace('text-white/20','text-red-400')
+          .replace('opacity-0 group-hover/task:opacity-100','opacity-100')
+      } else {
+        btn.textContent = '▶'
+        btn.className = btn.className
+          .replace('text-red-400','text-white/20')
+          .replace('opacity-100','opacity-0 group-hover/task:opacity-100')
+      }
+    })
+    updateHeaderTimer()
+  }
+
+  function updateHeaderTimer() {
+    const hdr = document.getElementById('header-timer')
+    if (!hdr) return
+    if (activeTimer) {
+      hdr.classList.remove('hidden')
+      hdr.classList.add('flex')
+      const taskEl = document.getElementById('header-timer-task')
+      if (taskEl) taskEl.textContent = activeTimer.taskTitle
+      const dispEl = document.getElementById('header-timer-display')
+      if (dispEl) dispEl.textContent = fmtDuration(Math.floor((Date.now() - activeTimer.startedAt) / 1000))
+    } else {
+      hdr.classList.add('hidden')
+      hdr.classList.remove('flex')
+    }
+  }
+
+  async function startTimer(projId, stId, taskId) {
+    if (activeTimer) await stopTimer()
+    const proj = getProject(projId)
+    const st = proj.subtasks.find(s => s.id === stId)
+    const task = st.tasks.find(t => t.id === taskId)
+    activeTimer = { projId, stId, taskId, projTitle: proj.title, stTitle: st.title, taskTitle: task.title, startedAt: Date.now() }
+    startTimerTick()
+    updateTimerButtons()
+  }
+
+  async function stopTimer() {
+    if (!activeTimer) return
+    const entry = { ...activeTimer }
+    const duration = Math.round((Date.now() - entry.startedAt) / 1000)
+    activeTimer = null
+    clearInterval(timerInterval)
+    timerInterval = null
+    updateTimerButtons()
+    if (duration >= 5) await saveTimeEntry(entry, duration)
+  }
+
+  async function saveTimeEntry(entry, duration) {
+    if (!currentSession) return
+    await sb.from('time_entries').insert({
+      user_id: currentSession.user.id,
+      project_id: entry.projId,
+      project_title: entry.projTitle,
+      task_id: entry.taskId,
+      task_title: entry.taskTitle,
+      subtask_id: entry.stId,
+      subtask_title: entry.stTitle,
+      started_at: new Date(entry.startedAt).toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_seconds: duration
+    })
+  }
+
+  async function renderTodayActivity() {
+    const container = document.getElementById('today-activity')
+    if (!container || !currentSession) return
+    const today = new Date(); today.setHours(0,0,0,0)
+    const { data, error } = await sb
+      .from('time_entries')
+      .select('*')
+      .eq('user_id', currentSession.user.id)
+      .gte('started_at', today.toISOString())
+      .order('started_at', { ascending: false })
+    if (error || !data?.length) return
+    const totalSeconds = data.reduce((sum, e) => sum + e.duration_seconds, 0)
+    container.innerHTML = `
+      <div class="mt-4 border-t border-white/5 pt-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-semibold text-white/40">Сегодня</span>
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-mono font-medium text-white/50">${fmtDuration(totalSeconds)}</span>
+            <button data-action="go-history" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">История →</button>
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          ${data.slice(0,8).map(e => {
+            const start = new Date(e.started_at)
+            return `<div class="flex items-center gap-3 bg-[#282e33] rounded-lg px-3 py-2.5">
+              <div class="w-1 h-8 rounded-full bg-blue-500/40 flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-white/70 truncate">${esc(e.task_title)}</div>
+                <div class="text-xs text-white/30 truncate">${esc(e.project_title)}${e.subtask_title ? ' › ' + esc(e.subtask_title) : ''}</div>
+              </div>
+              <div class="text-right flex-shrink-0">
+                <div class="text-sm font-mono font-medium text-white/60">${fmtDuration(e.duration_seconds)}</div>
+                <div class="text-xs text-white/30">${fmtHHMM(start)}</div>
+              </div>
+            </div>`
+          }).join('')}
+          ${data.length > 8 ? `<div class="text-xs text-center text-white/25 py-1">+${data.length-8} ещё</div>` : ''}
+        </div>
+      </div>`
+  }
+
+  async function renderHistory() {
+    document.getElementById('header-breadcrumb').classList.add('hidden')
+    document.getElementById('btn-new-project').classList.add('hidden')
+    const app = document.getElementById('app')
+    app.innerHTML = `
+      <div class="p-5 max-w-3xl mx-auto">
+        <div class="flex items-center gap-3 mb-5">
+          <h1 class="text-lg font-bold text-white/70 flex-1">История времени</h1>
+          <select id="history-filter" class="bg-[#282e33] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/60 focus:outline-none">
+            <option value="">Все проекты</option>
+          </select>
+        </div>
+        <div id="history-content" class="text-white/30 text-sm text-center py-12">Загрузка...</div>
+      </div>`
+    if (!currentSession) return
+    const { data, error } = await sb
+      .from('time_entries')
+      .select('*')
+      .eq('user_id', currentSession.user.id)
+      .order('started_at', { ascending: false })
+      .limit(500)
+    if (error) { document.getElementById('history-content').textContent = 'Ошибка загрузки'; return }
+    if (!data?.length) {
+      document.getElementById('history-content').innerHTML = `
+        <div class="text-center py-12">
+          <div class="text-4xl mb-3">⏱</div>
+          <p class="text-white/30 text-sm">Нет записей. Запусти таймер на таске чтобы начать.</p>
+        </div>`
+      return
+    }
+    const projects = [...new Map(data.map(e => [e.project_id, e.project_title])).entries()]
+    const filterEl = document.getElementById('history-filter')
+    projects.forEach(([id, title]) => {
+      const opt = document.createElement('option')
+      opt.value = id; opt.textContent = title
+      filterEl.appendChild(opt)
+    })
+    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+    const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
+    function renderEntries(filterProjId) {
+      const filtered = filterProjId ? data.filter(e => e.project_id === filterProjId) : data
+      if (!filtered.length) {
+        document.getElementById('history-content').innerHTML = `<p class="text-center py-8 text-white/25">Нет записей по этому проекту</p>`
+        return
+      }
+      const byDay = new Map()
+      for (const e of filtered) {
+        const d = new Date(e.started_at)
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+        if (!byDay.has(key)) byDay.set(key, { date: d, entries: [] })
+        byDay.get(key).entries.push(e)
+      }
+      const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0)
+      let html = ''
+      for (const [, { date, entries }] of byDay) {
+        const totalSecs = entries.reduce((s, e) => s + e.duration_seconds, 0)
+        const dMid = new Date(date); dMid.setHours(0,0,0,0)
+        const diff = Math.round((todayMidnight - dMid) / 86400000)
+        const dateLabel = diff === 0 ? 'Сегодня' : diff === 1 ? 'Вчера' : `${dayNames[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`
+        html += `
+          <div class="mb-6">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm font-semibold text-white/60">${dateLabel}</span>
+              <span class="text-sm font-mono font-medium text-white/40">${fmtDuration(totalSecs)}</span>
+            </div>
+            <div class="flex flex-col gap-2">
+              ${entries.map(e => {
+                const start = new Date(e.started_at)
+                const end = new Date(e.ended_at)
+                return `<div class="flex items-center gap-3 bg-[#282e33] rounded-lg px-3 py-2.5">
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm text-white/80 truncate">${esc(e.task_title)}</div>
+                    <div class="text-xs text-white/35 truncate">${esc(e.project_title)}${e.subtask_title ? ' › ' + esc(e.subtask_title) : ''}</div>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <div class="text-sm font-mono font-medium text-white/70">${fmtDuration(e.duration_seconds)}</div>
+                    <div class="text-xs text-white/30">${fmtHHMM(start)}–${fmtHHMM(end)}</div>
+                  </div>
+                </div>`
+              }).join('')}
+            </div>
+          </div>`
+      }
+      document.getElementById('history-content').innerHTML = html
+    }
+    renderEntries('')
+    filterEl.addEventListener('change', () => renderEntries(filterEl.value))
+  }
+
   function timeAgo(ts) {
     if (!ts) return null
     const diff = Date.now() - ts
@@ -267,13 +504,16 @@ const STATUSES = {
   function showHeaderAuth(session) {
     const emailEl = document.getElementById('header-user-email')
     const logoutBtn = document.getElementById('btn-logout')
+    const historyBtn = document.getElementById('btn-history')
     if (session) {
       emailEl.textContent = session.user.email
       emailEl.classList.remove('hidden')
       logoutBtn.classList.remove('hidden')
+      historyBtn?.classList.remove('hidden')
     } else {
       emailEl.classList.add('hidden')
       logoutBtn.classList.add('hidden')
+      historyBtn?.classList.add('hidden')
     }
   }
 
@@ -386,6 +626,7 @@ const STATUSES = {
   // ─── ROUTING ─────────────────────────────────────────────────────────────────
   function route() {
     const hash = location.hash
+    if (hash === '#history') { currentProjectId = null; renderHistory(); return }
     currentProjectId = hash.startsWith('#p/') ? hash.slice(3) : null
     render()
   }
@@ -509,9 +750,12 @@ const STATUSES = {
       </div>`
     }
 
-    html += `</div></div>`
+    html += `</div>
+      <div id="today-activity"></div>
+    </div>`
     app.innerHTML = html
     initCardDrag()
+    renderTodayActivity()
   }
 
   function renderProject() {
@@ -653,7 +897,9 @@ const STATUSES = {
     const allDone = total > 0 && done === total
     const checkmark = `<svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`
 
-    const tasksHtml = st.tasks.map(task => `
+    const tasksHtml = st.tasks.map(task => {
+      const isActive = activeTimer?.taskId === task.id && activeTimer?.stId === st.id
+      return `
       <div
         class="flex items-center gap-1.5 rounded-lg hover:bg-white/5 group/task transition-colors"
         draggable="true"
@@ -678,10 +924,19 @@ const STATUSES = {
           data-action="edit-task-title"
           data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
         >${esc(task.title)}</span>
+        <button
+          data-action="toggle-timer"
+          data-timer-task-id="${task.id}"
+          data-timer-st-id="${st.id}"
+          data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
+          class="flex-shrink-0 px-1.5 py-1.5 transition-all text-xs
+            ${isActive ? 'text-red-400 opacity-100' : 'text-white/20 hover:text-green-400 opacity-0 group-hover/task:opacity-100'}"
+        >${isActive ? '⏹' : '▶'}</button>
         <button data-action="delete-task"
           data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
           class="opacity-0 group-hover/task:opacity-100 transition-opacity text-white/25 hover:text-red-400 text-xs flex-shrink-0 px-1.5 py-1.5">✕</button>
-      </div>`).join('')
+      </div>`
+    }).join('')
 
     const isCollapsed = collapsed.has(st.id)
 
@@ -903,13 +1158,24 @@ const STATUSES = {
   }
 
   // ─── EVENTS ──────────────────────────────────────────────────────────────────
-  document.addEventListener('click', e => {
+  document.addEventListener('click', async e => {
     if (e.target.id === 'modal-overlay' || e.target.id === 'modal-close') { closeModal(); return }
 
     const el = e.target.closest('[data-action]')
     if (!el) return
     const a = el.dataset.action
 
+    if (a === 'go-history') { go('history'); return }
+    if (a === 'toggle-timer') {
+      e.stopPropagation()
+      const { projectId, subtaskId, taskId } = el.dataset
+      if (activeTimer && activeTimer.taskId === taskId && activeTimer.stId === subtaskId) {
+        await stopTimer()
+      } else {
+        await startTimer(projectId, subtaskId, taskId)
+      }
+      return
+    }
     if (a === 'set-tab') { homeTab = el.dataset.tab; renderHome(); return }
     if (a === 'cycle-status') {
       e.stopPropagation()
@@ -1114,6 +1380,11 @@ const STATUSES = {
 
   document.getElementById('btn-home').addEventListener('click', () => go(''))
   document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal)
+  document.getElementById('btn-history').addEventListener('click', () => go('history'))
+  document.getElementById('btn-stop-timer').addEventListener('click', async () => {
+    await stopTimer()
+    if (!currentProjectId && location.hash !== '#history') renderTodayActivity()
+  })
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.id === 'new-subtask-title') {
@@ -1174,6 +1445,7 @@ const STATUSES = {
         route()
         window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
       } else if (event === 'SIGNED_OUT') {
+        if (activeTimer) { activeTimer = null; clearInterval(timerInterval); timerInterval = null }
         dataLoaded = false
         currentSession = null
         currentProjectId = null

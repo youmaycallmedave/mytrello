@@ -87,6 +87,7 @@ const STATUSES = {
   let appData = { projects: [] }
   let currentProjectId = null
   let homeTab = 'inprogress'
+  let homeSearch = ''
   let saveTimer = null
   let dbSaveTimer = null
   let currentSession = null
@@ -826,43 +827,63 @@ const STATUSES = {
       return
     }
 
-    const sorted = appData.projects
-      .filter(p => (p.status || 'inprogress') === homeTab)
-      .sort((a, b) => a.title.localeCompare(b.title, 'ru'))
     const counts = {}
     for (const s of Object.keys(STATUSES)) counts[s] = appData.projects.filter(p => (p.status || 'inprogress') === s).length
 
     let html = `<div class="p-5 max-w-5xl mx-auto">
-      <div class="flex items-center justify-between mb-5">
-        <h1 class="text-lg font-bold text-white/70">Проекты</h1>
+      <!-- tabs + search -->
+      <div class="flex items-center gap-2 mb-5 flex-wrap">
+        <div class="flex gap-1 flex-wrap flex-1">
+          ${Object.entries(STATUSES).map(([key, s]) => `
+            <button data-action="set-tab" data-tab="${key}"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                ${homeTab === key
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-white/50 hover:text-white/80 hover:bg-white/8'}">
+              <span class="w-1.5 h-1.5 rounded-full ${s.dot} flex-shrink-0"></span>
+              ${s.label}
+              ${counts[key] ? `<span class="text-xs ${homeTab === key ? 'text-gray-400' : 'text-white/30'}">${counts[key]}</span>` : ''}
+            </button>`).join('')}
+        </div>
+        <input id="home-search" type="search" placeholder="Поиск..." value="${esc(homeSearch)}"
+          class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500/60 placeholder-white/25 text-white/80 w-44"/>
       </div>
-      <!-- tabs -->
-      <div class="flex gap-1 mb-5 flex-wrap">
-        ${Object.entries(STATUSES).map(([key, s]) => `
-          <button data-action="set-tab" data-tab="${key}" data-drop-tab="${key}"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
-              ${homeTab === key
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-white/50 hover:text-white/80 hover:bg-white/8'}">
-            <span class="w-1.5 h-1.5 rounded-full ${s.dot} flex-shrink-0"></span>
-            ${s.label}
-            ${counts[key] ? `<span class="text-xs ${homeTab === key ? 'text-gray-400' : 'text-white/30'}">${counts[key]}</span>` : ''}
-          </button>`).join('')}
+      <div id="cards-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        ${renderCardsHTML()}
       </div>
-      <div id="cards-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`
+      <div id="today-activity"></div>
+    </div>`
+    app.innerHTML = html
+    initCardDrag()
+    renderTodayActivity()
 
-    for (const proj of sorted) {
+    document.getElementById('home-search').addEventListener('input', e => {
+      homeSearch = e.target.value
+      document.getElementById('cards-container').innerHTML = renderCardsHTML()
+    })
+  }
+
+  function renderCardsHTML() {
+    const q = homeSearch.trim().toLowerCase()
+    const filtered = appData.projects
+      .filter(p => (p.status || 'inprogress') === homeTab)
+      .filter(p => !q || p.title.toLowerCase().includes(q))
+      .sort((a, b) => a.title.localeCompare(b.title, 'ru'))
+
+    if (!filtered.length) return `<div class="col-span-3 py-12 text-center text-white/25 text-sm">
+      ${q ? `Ничего не найдено по «${esc(homeSearch)}»` : 'Нет проектов в этой категории'}
+    </div>`
+
+    return filtered.map(proj => {
       const { done, total, pct } = projectProgress(proj)
       const allDone = total > 0 && done === total
       const dl = deadlineInfo(proj.deadline)
-
       const dlBadgeColor = !dl ? '' :
         dl.urgency === 'red'    ? 'bg-red-500/20 text-red-700' :
         dl.urgency === 'orange' ? 'bg-orange-500/15 text-orange-700' :
         dl.urgency === 'yellow' ? 'bg-yellow-500/15 text-yellow-700' :
                                   'bg-black/8 text-gray-500'
-
-      html += `
+      return `
         <div data-action="open-project" data-project-id="${proj.id}"
           class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
           <div class="px-4 pt-4 pb-3 flex-1">
@@ -910,20 +931,7 @@ const STATUSES = {
             </span>
           </div>
         </div>`
-    }
-
-    if (!sorted.length) {
-      html += `<div class="col-span-3 py-12 text-center text-white/25 text-sm">
-        Нет проектов в этой категории
-      </div>`
-    }
-
-    html += `</div>
-      <div id="today-activity"></div>
-    </div>`
-    app.innerHTML = html
-    initCardDrag()
-    renderTodayActivity()
+    }).join('')
   }
 
   function renderProject() {
@@ -944,10 +952,17 @@ const STATUSES = {
 
         <!-- Header -->
         <div class="mb-5">
-          <div class="flex items-center gap-3 mb-2">
-            <h1 class="text-2xl font-bold flex-1">${esc(proj.title)}</h1>
+          <div class="flex items-center gap-3 mb-3">
+            <button data-action="nav-home"
+              class="flex items-center gap-1.5 text-sm text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg flex-shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+              </svg>
+              Назад
+            </button>
+            <h1 class="text-2xl font-bold flex-1 truncate">${esc(proj.title)}</h1>
             <button data-action="edit-project-title" data-project-id="${proj.id}"
-              class="text-white/30 hover:text-white/60 transition-colors text-sm px-2 py-1 rounded hover:bg-white/5">✎</button>
+              class="text-white/30 hover:text-white/60 transition-colors text-sm px-2 py-1 rounded hover:bg-white/5 flex-shrink-0">✎</button>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             ${(() => {
@@ -1346,6 +1361,7 @@ const STATUSES = {
     if (!el) return
     const a = el.dataset.action
 
+    if (a === 'nav-home') { go(''); return }
     if (a === 'go-history') { go('history'); return }
     if (a === 'open-tracked-task') {
       pendingScrollTaskId = el.dataset.taskId

@@ -179,6 +179,17 @@ import '../styles/global.css';
     save()
   }
 
+  function cardBg(updatedAt) {
+    if (!updatedAt) return { bg: '#f7f8f9', fresh: true }
+    const days = (Date.now() - updatedAt) / 86400000
+    const t = Math.min(days / 14, 1)
+    // white → yellow → orange over 14 days
+    const h = Math.round(48 - 16 * t)   // 48 (yellow) → 32 (orange)
+    const s = Math.round(95 * t)         // 0% → 95%
+    const l = Math.round(97 - 25 * t)   // 97% → 72%
+    return { bg: `hsl(${h},${s}%,${l}%)`, fresh: t < 0.15 }
+  }
+
   function timeAgo(ts) {
     if (!ts) return null
     const diff = Date.now() - ts
@@ -406,54 +417,54 @@ import '../styles/global.css';
 
     for (const proj of sorted) {
       const { done, total, pct } = projectProgress(proj)
-      const color = COLORS.find(c => c.id === proj.color) || COLORS[0]
       const allDone = total > 0 && done === total
       const ago = timeAgo(proj.updatedAt)
       const dl = deadlineInfo(proj.deadline)
+      const { bg } = cardBg(proj.updatedAt)
 
       const dlBadgeColor = !dl ? '' :
-        dl.urgency === 'red'    ? 'bg-red-500/25 text-red-300' :
-        dl.urgency === 'orange' ? 'bg-orange-500/25 text-orange-300' :
-        dl.urgency === 'yellow' ? 'bg-yellow-500/20 text-yellow-300' :
-                                  'bg-black/20 text-white/55'
+        dl.urgency === 'red'    ? 'bg-red-500/20 text-red-700' :
+        dl.urgency === 'orange' ? 'bg-orange-500/15 text-orange-700' :
+        dl.urgency === 'yellow' ? 'bg-yellow-500/15 text-yellow-700' :
+                                  'bg-black/8 text-gray-500'
 
       html += `
         <div data-action="open-project" data-project-id="${proj.id}"
-          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-white/5 flex flex-col"
-          style="background: linear-gradient(135deg, ${color.hex[0]}, ${color.hex[1]})">
+          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm"
+          style="background:${bg}">
           <div class="px-4 pt-4 pb-3 flex-1">
             <div class="flex items-start justify-between mb-2.5">
-              <h2 class="font-bold text-base leading-tight pr-2">${esc(proj.title)}</h2>
+              <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
               <button data-action="delete-project" data-project-id="${proj.id}"
-                class="opacity-0 group-hover:opacity-100 transition-opacity text-white/40 hover:text-white/80 text-sm flex-shrink-0 mt-0.5">✕</button>
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5">✕</button>
             </div>
             ${dl ? `<div class="mb-2.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full ${dlBadgeColor}">⏱ ${dl.label}</span></div>` : ''}
-            <div class="flex items-center gap-2 text-xs text-white/60 mb-3">
+            <div class="flex items-center gap-2 text-xs text-gray-500 mb-3">
               <span>${proj.subtasks.length} подзадач</span>
-              <span class="text-white/20">·</span>
+              <span class="text-gray-300">·</span>
               <span>${total} тасков</span>
             </div>
-            <div class="h-1.5 bg-black/25 rounded-full overflow-hidden mb-1.5">
-              <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-green-400' : 'bg-white/70'}"
+            <div class="h-1.5 bg-black/10 rounded-full overflow-hidden mb-1.5">
+              <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-green-500' : 'bg-blue-500'}"
                 style="width:${pct}%"></div>
             </div>
             <div class="flex items-center justify-between text-xs">
-              <span class="${allDone ? 'text-green-300' : 'text-white/50'}">${done} из ${total} готово</span>
-              <span class="font-semibold ${allDone ? 'text-green-300' : 'text-white/70'}">${pct}%</span>
+              <span class="${allDone ? 'text-green-600 font-medium' : 'text-gray-500'}">${done} из ${total} готово</span>
+              <span class="font-semibold ${allDone ? 'text-green-600' : 'text-gray-600'}">${pct}%</span>
             </div>
           </div>
           ${proj.subtasks.length ? `
           <div class="px-4 pb-3 flex flex-wrap gap-1.5">
             ${proj.subtasks.slice(0,4).map(s => {
               const sp = subtaskProgress(s)
-              return `<span class="text-xs bg-black/20 text-white/60 px-2 py-0.5 rounded-full">
+              return `<span class="text-xs bg-black/8 text-gray-600 px-2 py-0.5 rounded-full">
                 ${esc(s.title)}${sp.total ? ` · ${sp.done}/${sp.total}` : ''}
               </span>`
             }).join('')}
-            ${proj.subtasks.length > 4 ? `<span class="text-xs text-white/30 px-1">+${proj.subtasks.length-4}</span>` : ''}
+            ${proj.subtasks.length > 4 ? `<span class="text-xs text-gray-400 px-1">+${proj.subtasks.length-4}</span>` : ''}
           </div>` : ''}
-          ${ago ? `<div class="px-4 pb-3 border-t border-black/15 pt-2.5 mt-1">
-            <span class="text-xs text-white/25">обновлён ${ago}</span>
+          ${ago ? `<div class="px-4 pb-3 border-t border-black/8 pt-2.5 mt-1">
+            <span class="text-xs text-gray-400">обновлён ${ago}</span>
           </div>` : ''}
         </div>`
     }

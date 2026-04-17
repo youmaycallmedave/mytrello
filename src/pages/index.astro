@@ -94,6 +94,7 @@ const STATUSES = {
   const collapsed = new Set()
   let activeTimer = null  // { projId, stId, taskId, projTitle, stTitle, taskTitle, startedAt }
   let timerInterval = null
+  let pendingScrollTaskId = null
 
   // ─── UTILS ───────────────────────────────────────────────────────────────────
   function uid() {
@@ -349,7 +350,11 @@ const STATUSES = {
         <div class="flex flex-col gap-2">
           ${data.slice(0,8).map(e => {
             const start = new Date(e.started_at)
-            return `<div class="flex items-center gap-3 bg-[#282e33] rounded-lg px-3 py-2.5">
+            return `<div
+              data-action="open-tracked-task"
+              data-project-id="${e.project_id}"
+              data-task-id="${e.task_id}"
+              class="flex items-center gap-3 bg-[#282e33] hover:bg-[#313840] rounded-lg px-3 py-2.5 cursor-pointer transition-colors">
               <div class="w-1 h-8 rounded-full bg-blue-500/40 flex-shrink-0"></div>
               <div class="flex-1 min-w-0">
                 <div class="text-sm text-white/70 truncate">${esc(e.task_title)}</div>
@@ -428,7 +433,8 @@ const STATUSES = {
                   <span
                     data-action="edit-time-entry"
                     data-entry-id="${e.id}"
-                    data-duration="${e.duration_seconds}"
+                    data-started-at="${e.started_at}"
+                    data-ended-at="${e.ended_at}"
                     class="text-sm font-mono font-medium text-white/60 cursor-pointer hover:text-blue-300 hover:underline transition-colors flex-shrink-0"
                     title="Нажми чтобы изменить"
                   >${fmtDuration(e.duration_seconds)}</span>
@@ -734,8 +740,32 @@ const STATUSES = {
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
   function render() {
-    if (currentProjectId) { renderProject(); initDragDrop(); renderProjectTimeHistory(currentProjectId) }
-    else renderHome()
+    if (currentProjectId) {
+      // if target task is in a collapsed subtask — uncollapse first
+      if (pendingScrollTaskId) {
+        const proj = getProject(currentProjectId)
+        if (proj) {
+          for (const st of proj.subtasks) {
+            if (st.tasks.some(t => t.id === pendingScrollTaskId) && collapsed.has(st.id)) {
+              collapsed.delete(st.id); break
+            }
+          }
+        }
+      }
+      renderProject(); initDragDrop(); renderProjectTimeHistory(currentProjectId)
+      if (pendingScrollTaskId) {
+        const taskId = pendingScrollTaskId
+        pendingScrollTaskId = null
+        setTimeout(() => {
+          const el = document.querySelector(`[data-task-id="${taskId}"]`)
+          if (!el) return
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.style.transition = 'background-color 0.5s'
+          el.style.backgroundColor = 'rgba(59,130,246,0.18)'
+          setTimeout(() => { el.style.backgroundColor = '' }, 1800)
+        }, 120)
+      }
+    } else renderHome()
   }
 
   function renderHome() {
@@ -1273,6 +1303,11 @@ const STATUSES = {
     const a = el.dataset.action
 
     if (a === 'go-history') { go('history'); return }
+    if (a === 'open-tracked-task') {
+      pendingScrollTaskId = el.dataset.taskId
+      go(`p/${el.dataset.projectId}`)
+      return
+    }
     if (a === 'delete-time-entry') {
       e.stopPropagation()
       if (!confirm('Удалить запись?')) return
@@ -1282,23 +1317,42 @@ const STATUSES = {
     }
     if (a === 'edit-time-entry') {
       e.stopPropagation()
-      const entryId = el.dataset.entryId
-      const currentMins = Math.round(parseInt(el.dataset.duration) / 60) || 1
-      const inp = document.createElement('input')
-      inp.type = 'number'; inp.value = currentMins; inp.min = 1; inp.max = 9999
-      inp.className = 'w-16 bg-[#1d2125] border border-blue-500 rounded px-1.5 py-0.5 text-sm font-mono text-white focus:outline-none text-center'
-      inp.title = 'минуты'
-      el.replaceWith(inp); inp.focus(); inp.select()
-      const save = async () => {
-        const mins = parseInt(inp.value)
-        if (!mins || mins < 1) { renderProjectTimeHistory(currentProjectId); return }
-        await sb.from('time_entries').update({ duration_seconds: mins * 60 }).eq('id', entryId)
-        renderProjectTimeHistory(currentProjectId)
+      const { entryId, startedAt, endedAt } = el.dataset
+      const toLocal = iso => {
+        const d = new Date(iso)
+        const p = n => String(n).padStart(2,'0')
+        return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
       }
-      inp.addEventListener('blur', save)
-      inp.addEventListener('keydown', e2 => {
-        if (e2.key === 'Enter') { e2.preventDefault(); save() }
-        if (e2.key === 'Escape') renderProjectTimeHistory(currentProjectId)
+      openModal(`
+        <div class="p-5">
+          <h2 class="text-base font-bold mb-4">Изменить запись</h2>
+          <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Начало</label>
+          <input id="entry-start" type="datetime-local" value="${toLocal(startedAt)}"
+            class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 mb-3 [color-scheme:dark]"/>
+          <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Конец</label>
+          <input id="entry-end" type="datetime-local" value="${toLocal(endedAt)}"
+            class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 mb-1 [color-scheme:dark]"/>
+          <p id="entry-error" class="hidden text-xs text-red-400 mb-3">Конец должен быть позже начала</p>
+          <div class="mb-4"></div>
+          <button id="entry-save"
+            class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg py-2.5 text-sm font-semibold">
+            Сохранить
+          </button>
+        </div>`)
+      document.getElementById('entry-save').addEventListener('click', async () => {
+        const start = new Date(document.getElementById('entry-start').value)
+        const end = new Date(document.getElementById('entry-end').value)
+        if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+          document.getElementById('entry-error').classList.remove('hidden'); return
+        }
+        document.getElementById('entry-save').textContent = 'Сохраняем...'
+        await sb.from('time_entries').update({
+          started_at: start.toISOString(),
+          ended_at: end.toISOString(),
+          duration_seconds: Math.round((end - start) / 1000)
+        }).eq('id', entryId)
+        closeModal()
+        renderProjectTimeHistory(currentProjectId)
       })
       return
     }

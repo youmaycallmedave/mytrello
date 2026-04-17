@@ -1641,6 +1641,11 @@ const STATUSES = {
     if (note) { note.content = sanitizeNoteHTML(ce.innerHTML); saveProject() }
   })
 
+  document.addEventListener('click', e => {
+    const link = e.target.closest('.note-content a')
+    if (link) { e.preventDefault(); window.open(link.href, '_blank', 'noopener,noreferrer') }
+  }, true)
+
   document.addEventListener('paste', e => {
     const ce = e.target.closest('[data-action="edit-note-content"]')
     if (!ce) return

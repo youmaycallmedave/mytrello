@@ -346,6 +346,71 @@ const STATUSES = {
       </div>`
   }
 
+  async function renderProjectTimeHistory(projId) {
+    const container = document.getElementById('project-time-history')
+    if (!container || !currentSession) return
+    const { data, error } = await sb
+      .from('time_entries')
+      .select('*')
+      .eq('user_id', currentSession.user.id)
+      .eq('project_id', projId)
+      .order('started_at', { ascending: false })
+      .limit(100)
+    if (error || !data?.length) {
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Время</span>
+        </div>
+        <p class="text-white/20 text-xs text-center py-3">Нет записей</p>`
+      return
+    }
+    const totalSeconds = data.reduce((sum, e) => sum + e.duration_seconds, 0)
+    const byDay = new Map()
+    for (const e of data) {
+      const d = new Date(e.started_at)
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+      if (!byDay.has(key)) byDay.set(key, { date: d, entries: [] })
+      byDay.get(key).entries.push(e)
+    }
+    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+    const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
+    const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0)
+    let html = `
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Время</span>
+        <span class="text-xs font-mono font-medium text-white/50">${fmtDuration(totalSeconds)}</span>
+      </div>
+      <div class="flex flex-col gap-3 max-h-[420px] overflow-y-auto pr-1">`
+    for (const [, { date, entries }] of byDay) {
+      const dayTotal = entries.reduce((s, e) => s + e.duration_seconds, 0)
+      const dMid = new Date(date); dMid.setHours(0,0,0,0)
+      const diff = Math.round((todayMidnight - dMid) / 86400000)
+      const dateLabel = diff === 0 ? 'Сегодня' : diff === 1 ? 'Вчера' : `${dayNames[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`
+      html += `
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs text-white/35 font-medium">${dateLabel}</span>
+            <span class="text-xs font-mono text-white/35">${fmtDuration(dayTotal)}</span>
+          </div>
+          ${entries.map(e => {
+            const start = new Date(e.started_at)
+            return `<div class="flex items-start gap-2 py-1 pl-2 border-l-2 border-blue-500/25 mb-1.5">
+              <div class="flex-1 min-w-0">
+                <div class="text-xs text-white/65 truncate">${esc(e.task_title)}</div>
+                ${e.subtask_title ? `<div class="text-xs text-white/30 truncate">${esc(e.subtask_title)}</div>` : ''}
+              </div>
+              <div class="text-right flex-shrink-0">
+                <div class="text-xs font-mono text-white/55">${fmtDuration(e.duration_seconds)}</div>
+                <div class="text-xs text-white/25">${fmtHHMM(start)}</div>
+              </div>
+            </div>`
+          }).join('')}
+        </div>`
+    }
+    html += `</div>`
+    container.innerHTML = html
+  }
+
   async function renderHistory() {
     document.getElementById('header-breadcrumb').classList.add('hidden')
     document.getElementById('btn-new-project').classList.add('hidden')
@@ -634,7 +699,7 @@ const STATUSES = {
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
   function render() {
-    if (currentProjectId) renderProject()
+    if (currentProjectId) { renderProject(); initDragDrop(); renderProjectTimeHistory(currentProjectId) }
     else renderHome()
   }
 
@@ -841,9 +906,15 @@ const STATUSES = {
             </div>
           </div>
 
-          <!-- RIGHT: notes -->
-          <div class="w-full lg:w-72 flex-shrink-0">
+          <!-- RIGHT: notes + time -->
+          <div class="w-full lg:w-72 flex-shrink-0 flex flex-col gap-5">
             ${renderNotesColumn(proj)}
+            <div id="project-time-history" class="bg-[#282e33] rounded-xl p-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Время</span>
+              </div>
+              <p class="text-white/20 text-xs text-center py-2">Загрузка...</p>
+            </div>
           </div>
 
         </div>
@@ -1006,6 +1077,7 @@ const STATUSES = {
     const scrollY = window.scrollY
     renderProject()
     initDragDrop()
+    renderProjectTimeHistory(currentProjectId)
     window.scrollTo({ top: scrollY })
   }
 

@@ -179,16 +179,17 @@ import '../styles/global.css';
     save()
   }
 
-  function timerBar(proj) {
-    if (!proj.timer) return { pct: 0, color: '#e5e7eb', label: null, expired: false, active: false }
-    const elapsed = (Date.now() - proj.timer.start) / 60000
-    const duration = proj.timer.duration || 30
-    const pct = Math.min(elapsed / duration, 1) * 100
-    const expired = pct >= 100
-    const remaining = Math.max(Math.ceil(duration - elapsed), 0)
-    const color = expired ? '#ef4444' : pct < 40 ? '#22c55e' : pct < 70 ? '#eab308' : '#f97316'
-    const label = expired ? '⏰ время вышло' : `${remaining} мин`
-    return { pct, color, label, expired, active: true }
+  function elapsedSince(ts) {
+    if (!ts) return '—'
+    const diff = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+    const d = Math.floor(diff / 86400)
+    const h = Math.floor((diff % 86400) / 3600)
+    const m = Math.floor((diff % 3600) / 60)
+    const s = diff % 60
+    if (d > 0) return `${d}д ${h}ч ${m}м ${s}с`
+    if (h > 0) return `${h}ч ${m}м ${s}с`
+    if (m > 0) return `${m}м ${s}с`
+    return `${s}с`
   }
 
   function timeAgo(ts) {
@@ -419,9 +420,7 @@ import '../styles/global.css';
     for (const proj of sorted) {
       const { done, total, pct } = projectProgress(proj)
       const allDone = total > 0 && done === total
-      const ago = timeAgo(proj.updatedAt)
       const dl = deadlineInfo(proj.deadline)
-      const timer = timerBar(proj)
 
       const dlBadgeColor = !dl ? '' :
         dl.urgency === 'red'    ? 'bg-red-500/20 text-red-700' :
@@ -463,25 +462,11 @@ import '../styles/global.css';
             }).join('')}
             ${proj.subtasks.length > 4 ? `<span class="text-xs text-gray-400 px-1">+${proj.subtasks.length-4}</span>` : ''}
           </div>` : ''}
-          <div class="px-4 pb-2 pt-1 flex items-center justify-between border-t border-black/6 mt-1">
-            <span class="text-xs text-gray-400">${ago ? `обновлён ${ago}` : ''}</span>
-            <button
-              data-action="toggle-timer"
-              data-project-id="${proj.id}"
-              class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full transition-all
-                ${timer.active
-                  ? timer.expired
-                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                    : 'bg-green-100 text-green-700 hover:bg-green-200'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}"
-              title="${timer.active ? 'Сбросить таймер' : 'Запустить таймер на 30 мин'}"
-            >
-              ${timer.active ? timer.label : '▶ 30 мин'}
-            </button>
-          </div>
-          <div class="h-1 bg-black/6 w-full">
-            <div class="h-full transition-all duration-1000"
-              style="width:${timer.pct}%; background:${timer.color}"></div>
+          <div class="px-4 pb-3 pt-2 flex items-center justify-between border-t border-black/6 mt-1">
+            <span class="text-xs text-gray-400">с последнего апдейта</span>
+            <span id="elapsed-${proj.id}" class="text-xs font-mono font-medium text-gray-600 tabular-nums">
+              ${elapsedSince(proj.updatedAt)}
+            </span>
           </div>
         </div>`
     }
@@ -909,16 +894,6 @@ import '../styles/global.css';
       inp.addEventListener('keydown', e2 => { if (e2.key === 'Enter') { e2.preventDefault(); done() } if (e2.key === 'Escape') rerenderProject() })
       return
     }
-    if (a === 'toggle-timer') {
-      e.stopPropagation()
-      const proj = getProject(el.dataset.projectId)
-      if (proj.timer) {
-        proj.timer = null
-      } else {
-        proj.timer = { start: Date.now(), duration: 30 }
-      }
-      save(); renderHome(); return
-    }
     if (a === 'edit-deadline') {
       const proj = getProject(el.dataset.projectId)
       openModal(`
@@ -1100,12 +1075,14 @@ import '../styles/global.css';
     }
   })
 
-  // ─── TIMER TICK ──────────────────────────────────────────────────────────────
+  // ─── ELAPSED TICK ────────────────────────────────────────────────────────────
   setInterval(() => {
-    if (!currentProjectId && appData.projects.some(p => p.timer)) {
-      renderHome()
+    if (currentProjectId) return
+    for (const proj of appData.projects) {
+      const el = document.getElementById(`elapsed-${proj.id}`)
+      if (el) el.textContent = elapsedSince(proj.updatedAt)
     }
-  }, 30000)
+  }, 1000)
 
   // ─── LOGOUT ──────────────────────────────────────────────────────────────────
   document.getElementById('btn-logout').addEventListener('click', async () => {

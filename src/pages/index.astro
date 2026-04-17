@@ -260,18 +260,18 @@ import '../styles/global.css';
   }
 
   const ORIGINAL_TITLE = document.title
-  const TIMER_FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#ef4444"/><circle cx="16" cy="17" r="8" fill="none" stroke="white" stroke-width="2"/><line x1="16" y1="9" x2="16" y2="7" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="17" x2="16" y2="12" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="16" y1="17" x2="20" y2="17" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="4" x2="14" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round"/><line x1="20" y1="4" x2="18" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>`
 
-  function setFavicon(active) {
+  function timerFaviconSVG(color) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${color}"/><circle cx="16" cy="17" r="8" fill="none" stroke="white" stroke-width="2"/><line x1="16" y1="9" x2="16" y2="7" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="17" x2="16" y2="12" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="16" y1="17" x2="20" y2="17" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="4" x2="14" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round"/><line x1="20" y1="4" x2="18" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>`
+  }
+
+  function setFavicon(active, secs = 0) {
     let link = document.querySelector('link[rel="icon"]')
     if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link) }
-    if (active) {
-      link.type = 'image/svg+xml'
-      link.href = 'data:image/svg+xml,' + encodeURIComponent(TIMER_FAVICON_SVG)
-    } else {
-      link.type = 'image/svg+xml'
-      link.href = '/favicon.svg'
-    }
+    link.type = 'image/svg+xml'
+    if (!active) { link.href = '/favicon.svg'; return }
+    const color = secs < 1800 ? '#22c55e' : secs < 3600 ? '#eab308' : '#ef4444'
+    link.href = 'data:image/svg+xml,' + encodeURIComponent(timerFaviconSVG(color))
   }
 
   function startTimerTick() {
@@ -281,7 +281,8 @@ import '../styles/global.css';
       const secs = Math.floor((Date.now() - activeTimer.startedAt) / 1000)
       const el = document.getElementById('header-timer-display')
       if (el) el.textContent = fmtDuration(secs)
-      document.title = `▶ ${fmtDuration(secs)} — ${activeTimer.taskTitle}`
+      document.title = `▶ ${activeTimer.projTitle} → ${activeTimer.taskTitle} — ${fmtDuration(secs)}`
+      setFavicon(true, secs)
     }, 1000)
   }
 
@@ -391,7 +392,7 @@ import '../styles/global.css';
       activeTimer = appData.activeTimer
       startTimerTick()
       updateHeaderTimer()
-      setFavicon(true)
+      setFavicon(true, Math.floor((Date.now() - activeTimer.startedAt) / 1000))
     }
   }
 

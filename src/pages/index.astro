@@ -268,14 +268,32 @@ const STATUSES = {
     }
   }
 
+  async function saveTimerState() {
+    if (!currentSession) return
+    await sb.from('projects_data').upsert(
+      { user_id: currentSession.user.id, data: appData, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+  }
+
+  function restoreTimerFromData() {
+    if (appData.activeTimer) {
+      activeTimer = appData.activeTimer
+      startTimerTick()
+      updateHeaderTimer()
+    }
+  }
+
   async function startTimer(projId, stId, taskId) {
     if (activeTimer) await stopTimer()
     const proj = getProject(projId)
     const st = proj.subtasks.find(s => s.id === stId)
     const task = st.tasks.find(t => t.id === taskId)
     activeTimer = { projId, stId, taskId, projTitle: proj.title, stTitle: st.title, taskTitle: task.title, startedAt: Date.now() }
+    appData.activeTimer = activeTimer
     startTimerTick()
     updateTimerButtons()
+    saveTimerState()
   }
 
   async function stopTimer() {
@@ -283,9 +301,11 @@ const STATUSES = {
     const entry = { ...activeTimer }
     const duration = Math.round((Date.now() - entry.startedAt) / 1000)
     activeTimer = null
+    delete appData.activeTimer
     clearInterval(timerInterval)
     timerInterval = null
     updateTimerButtons()
+    saveTimerState()
     if (duration >= 5) await saveTimeEntry(entry, duration)
   }
 
@@ -1502,6 +1522,7 @@ const STATUSES = {
       dataLoaded = true
       showHeaderAuth(session)
       await loadFromDB()
+      restoreTimerFromData()
       route()
       window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
     } else {
@@ -1514,10 +1535,11 @@ const STATUSES = {
         dataLoaded = true
         showHeaderAuth(session)
         await loadFromDB()
+        restoreTimerFromData()
         route()
         window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
       } else if (event === 'SIGNED_OUT') {
-        if (activeTimer) { activeTimer = null; clearInterval(timerInterval); timerInterval = null }
+        if (activeTimer) { activeTimer = null; delete appData.activeTimer; clearInterval(timerInterval); timerInterval = null }
         dataLoaded = false
         currentSession = null
         currentProjectId = null

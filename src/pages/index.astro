@@ -461,13 +461,15 @@ import '../styles/global.css';
 
       html += `
         <div data-action="open-project" data-project-id="${proj.id}"
-          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white"
-          style="border-left: 4px solid ${PRIORITIES[proj.priority || 2].border}">
+          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
           <div class="px-4 pt-4 pb-3 flex-1">
             <div class="flex items-start justify-between mb-2.5">
               <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
-              <button data-action="delete-project" data-project-id="${proj.id}"
-                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5 ml-1">✕</button>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <div class="w-3 h-3 rounded-sm flex-shrink-0" style="background:${PRIORITIES[proj.priority || 2].border}" title="${PRIORITIES[proj.priority || 2].label}"></div>
+                <button data-action="delete-project" data-project-id="${proj.id}"
+                  class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm">✕</button>
+              </div>
             </div>
             <div class="mb-2.5">
               <button data-action="cycle-status" data-project-id="${proj.id}"
@@ -502,19 +504,7 @@ import '../styles/global.css';
             ${proj.subtasks.length > 4 ? `<span class="text-xs text-gray-400 px-1">+${proj.subtasks.length-4}</span>` : ''}
           </div>` : ''}
           <div class="px-4 pb-3 pt-2 flex items-center justify-between border-t border-black/6 mt-1">
-            <div class="flex items-center gap-1.5">
-              ${[1,2,3].map(p => {
-                const pr = PRIORITIES[p]
-                const active = (proj.priority || 2) === p
-                return `<button
-                  data-action="set-priority" data-project-id="${proj.id}" data-priority="${p}"
-                  class="w-5 h-5 rounded-full border-2 transition-all hover:scale-110 flex-shrink-0
-                    ${active ? pr.bg + ' border-transparent' : 'bg-transparent border-gray-300 hover:border-gray-400'}"
-                  title="${pr.label}"
-                  style="${active ? '' : ''}"></button>`
-              }).join('')}
-              <span class="text-xs ml-0.5" style="color:${PRIORITIES[proj.priority || 2].color}">${PRIORITIES[proj.priority || 2].label}</span>
-            </div>
+            <span class="text-xs text-gray-400">с последнего апдейта</span>
             <span id="elapsed-${proj.id}" class="text-xs font-mono font-medium text-gray-400 tabular-nums">
               ${elapsedSince(proj.updatedAt)}
             </span>
@@ -564,7 +554,16 @@ import '../styles/global.css';
                 dl.urgency === 'orange' ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30' :
                 dl.urgency === 'yellow' ? 'bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25' :
                                           'bg-white/8 text-white/50 hover:bg-white/12'
-              return `<button data-action="edit-deadline" data-project-id="${proj.id}"
+              return `
+              <div class="flex items-center gap-1 bg-white/5 rounded-full px-2 py-1">
+                <span class="text-xs text-white/40 mr-0.5">приоритет</span>
+                ${[1,2,3].map(p => `
+                  <button data-action="set-priority" data-project-id="${proj.id}" data-priority="${p}"
+                    class="w-4 h-4 rounded-sm transition-all hover:scale-110 flex-shrink-0 ${(proj.priority||2)===p ? 'ring-2 ring-white/40 ring-offset-1 ring-offset-transparent' : 'opacity-50 hover:opacity-80'}"
+                    style="background:${PRIORITIES[p].border}" title="${PRIORITIES[p].label}">
+                  </button>`).join('')}
+              </div>
+              <button data-action="edit-deadline" data-project-id="${proj.id}"
                 class="text-xs px-2.5 py-1 rounded-full transition-colors ${badgeColor} flex items-center gap-1.5">
                 <span>⏱</span>
                 <span>${dl ? dl.label : 'дедлайн'}</span>

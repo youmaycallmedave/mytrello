@@ -248,7 +248,7 @@ import '../styles/global.css';
 
   // ─── TIMER ───────────────────────────────────────────────────────────────────
   function fmtDuration(seconds) {
-    if (seconds < 60) return '< 1м'
+    if (seconds < 60) return `${seconds}с`
     const m = Math.floor(seconds / 60)
     const h = Math.floor(m / 60)
     if (h > 0) return `${h}ч ${m % 60}м`

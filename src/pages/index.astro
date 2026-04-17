@@ -65,10 +65,18 @@ import '../styles/global.css';
     { id: 'slate',  hex: ['#0f172a','#1e293b'] },
   ]
 
+  const STATUSES = {
+    todo:       { label: 'Нужно сделать', color: 'bg-gray-100 text-gray-500',           dot: 'bg-gray-400' },
+    inprogress: { label: 'В работе',      color: 'bg-blue-100 text-blue-700',            dot: 'bg-blue-500' },
+    pending:    { label: 'На апруве',     color: 'bg-yellow-100 text-yellow-700',        dot: 'bg-yellow-500' },
+    archived:   { label: 'Архив',         color: 'bg-green-100 text-green-700',          dot: 'bg-green-500' },
+  }
+
   // ─── STATE ───────────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'my-trello-v2'
   let appData = { projects: [] }
   let currentProjectId = null
+  let homeTab = 'inprogress'
   let saveTimer = null
   let dbSaveTimer = null
   let currentSession = null
@@ -132,7 +140,7 @@ import '../styles/global.css';
     appData = {
       projects: [
         {
-          id: uid(), title: 'Собрать сайт', color: 'blue', updatedAt: Date.now(), deadline: null,
+          id: uid(), title: 'Собрать сайт', color: 'blue', updatedAt: Date.now(), deadline: null, status: 'inprogress',
           subtasks: [
             {
               id: uid(), title: 'Главная страница',
@@ -411,10 +419,28 @@ import '../styles/global.css';
       return
     }
 
-    const sorted = sortProjects(appData.projects)
+    const tabProjects = appData.projects.filter(p => (p.status || 'inprogress') === homeTab)
+    const sorted = sortProjects(tabProjects)
+    const counts = {}
+    for (const s of Object.keys(STATUSES)) counts[s] = appData.projects.filter(p => (p.status || 'inprogress') === s).length
 
     let html = `<div class="p-5 max-w-5xl mx-auto">
-      <h1 class="text-lg font-bold text-white/70 mb-5">Проекты</h1>
+      <div class="flex items-center justify-between mb-5">
+        <h1 class="text-lg font-bold text-white/70">Проекты</h1>
+      </div>
+      <!-- tabs -->
+      <div class="flex gap-1 mb-5 flex-wrap">
+        ${Object.entries(STATUSES).map(([key, s]) => `
+          <button data-action="set-tab" data-tab="${key}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+              ${homeTab === key
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-white/50 hover:text-white/80 hover:bg-white/8'}">
+            <span class="w-1.5 h-1.5 rounded-full ${s.dot} flex-shrink-0"></span>
+            ${s.label}
+            ${counts[key] ? `<span class="text-xs ${homeTab === key ? 'text-gray-400' : 'text-white/30'}">${counts[key]}</span>` : ''}
+          </button>`).join('')}
+      </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`
 
     for (const proj of sorted) {
@@ -435,7 +461,14 @@ import '../styles/global.css';
             <div class="flex items-start justify-between mb-2.5">
               <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
               <button data-action="delete-project" data-project-id="${proj.id}"
-                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5">✕</button>
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5 ml-1">✕</button>
+            </div>
+            <div class="mb-2.5">
+              <button data-action="cycle-status" data-project-id="${proj.id}"
+                class="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full transition-all ${STATUSES[proj.status || 'inprogress'].color} hover:opacity-80">
+                <span class="w-1.5 h-1.5 rounded-full ${STATUSES[proj.status || 'inprogress'].dot}"></span>
+                ${STATUSES[proj.status || 'inprogress'].label}
+              </button>
             </div>
             ${dl ? `<div class="mb-2.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full ${dlBadgeColor}">⏱ ${dl.label}</span></div>` : ''}
             <div class="flex items-center gap-2 text-xs text-gray-500 mb-3">
@@ -469,6 +502,12 @@ import '../styles/global.css';
             </span>
           </div>
         </div>`
+    }
+
+    if (!sorted.length) {
+      html += `<div class="col-span-3 py-12 text-center text-white/25 text-sm">
+        Нет проектов в этой категории
+      </div>`
     }
 
     html += `</div></div>`
@@ -866,6 +905,15 @@ import '../styles/global.css';
     if (!el) return
     const a = el.dataset.action
 
+    if (a === 'set-tab') { homeTab = el.dataset.tab; renderHome(); return }
+    if (a === 'cycle-status') {
+      e.stopPropagation()
+      const proj = getProject(el.dataset.projectId)
+      const order = ['todo', 'inprogress', 'pending', 'archived']
+      const cur = order.indexOf(proj.status || 'inprogress')
+      proj.status = order[(cur + 1) % order.length]
+      save(); renderHome(); return
+    }
     if (a === 'open-project') { e.stopPropagation(); go(`p/${el.dataset.projectId}`); return }
     if (a === 'new-project') { showNewProjectModal(); return }
     if (a === 'delete-project') {
@@ -877,7 +925,7 @@ import '../styles/global.css';
     if (a === 'confirm-new-project') {
       const title = document.getElementById('new-proj-input').value.trim()
       if (!title) { document.getElementById('new-proj-input').focus(); return }
-      const proj = { id: uid(), title, color: window._newProjColor || 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: null }
+      const proj = { id: uid(), title, color: window._newProjColor || 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: null, status: 'inprogress' }
       appData.projects.push(proj)
       save(); closeModal(); go(`p/${proj.id}`); return
     }

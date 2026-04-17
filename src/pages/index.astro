@@ -452,36 +452,55 @@ import '../styles/global.css';
       .order('started_at', { ascending: false })
     if (error || !data?.length) return
     const totalSeconds = data.reduce((sum, e) => sum + e.duration_seconds, 0)
+
+    // group by project, preserving first-seen order
+    const byProject = new Map()
+    for (const e of data) {
+      if (!byProject.has(e.project_id)) byProject.set(e.project_id, { title: e.project_title, id: e.project_id, entries: [] })
+      byProject.get(e.project_id).entries.push(e)
+    }
+
+    const projectsHTML = [...byProject.values()].map(proj => {
+      const projTotal = proj.entries.reduce((s, e) => s + e.duration_seconds, 0)
+      const tasksHTML = proj.entries.map(e => {
+        const start = new Date(e.started_at)
+        return `<div
+          data-action="open-tracked-task"
+          data-project-id="${e.project_id}"
+          data-task-id="${e.task_id}"
+          class="flex items-center gap-3 hover:bg-white/4 rounded-lg px-2 py-2 cursor-pointer transition-colors">
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white/65 truncate">${esc(e.task_title)}</div>
+            ${e.subtask_title ? `<div class="text-xs text-white/25 truncate">${esc(e.subtask_title)}</div>` : ''}
+          </div>
+          <div class="text-right flex-shrink-0">
+            <div class="text-sm font-mono font-medium text-white/50">${fmtDuration(e.duration_seconds)}</div>
+            <div class="text-xs text-white/25">${fmtHHMM(start)}</div>
+          </div>
+        </div>`
+      }).join('')
+
+      return `
+        <div class="bg-[#282e33] rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-white/5 cursor-pointer hover:bg-white/3 transition-colors"
+            data-action="open-project" data-project-id="${proj.id}">
+            <span class="text-sm font-semibold text-white/80">${esc(proj.title)}</span>
+            <span class="text-sm font-mono font-medium text-white/50">${fmtDuration(projTotal)}</span>
+          </div>
+          <div class="px-2 py-1">${tasksHTML}</div>
+        </div>`
+    }).join('')
+
     container.innerHTML = `
       <div class="mt-4 border-t border-white/5 pt-5">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between mb-4">
           <span class="text-sm font-semibold text-white/40">Сегодня</span>
           <div class="flex items-center gap-3">
             <span class="text-sm font-mono font-medium text-white/50">${fmtDuration(totalSeconds)}</span>
             <button data-action="go-history" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">История →</button>
           </div>
         </div>
-        <div class="flex flex-col gap-2">
-          ${data.slice(0,8).map(e => {
-            const start = new Date(e.started_at)
-            return `<div
-              data-action="open-tracked-task"
-              data-project-id="${e.project_id}"
-              data-task-id="${e.task_id}"
-              class="flex items-center gap-3 bg-[#282e33] hover:bg-[#313840] rounded-lg px-3 py-2.5 cursor-pointer transition-colors">
-              <div class="w-1 h-8 rounded-full bg-blue-500/40 flex-shrink-0"></div>
-              <div class="flex-1 min-w-0">
-                <div class="text-sm text-white/70 truncate">${esc(e.task_title)}</div>
-                <div class="text-xs text-white/30 truncate">${esc(e.project_title)}${e.subtask_title ? ' › ' + esc(e.subtask_title) : ''}</div>
-              </div>
-              <div class="text-right flex-shrink-0">
-                <div class="text-sm font-mono font-medium text-white/60">${fmtDuration(e.duration_seconds)}</div>
-                <div class="text-xs text-white/30">${fmtHHMM(start)}</div>
-              </div>
-            </div>`
-          }).join('')}
-          ${data.length > 8 ? `<div class="text-xs text-center text-white/25 py-1">+${data.length-8} ещё</div>` : ''}
-        </div>
+        <div class="flex flex-col gap-3">${projectsHTML}</div>
       </div>`
   }
 

@@ -65,13 +65,7 @@ import '../styles/global.css';
     { id: 'slate',  hex: ['#0f172a','#1e293b'] },
   ]
 
-  const PRIORITIES = {
-    1: { label: 'Низкий',   color: '#22c55e', ring: 'ring-green-400',  bg: 'bg-green-500',  border: '#22c55e' },
-    2: { label: 'Средний',  color: '#eab308', ring: 'ring-yellow-400', bg: 'bg-yellow-400', border: '#eab308' },
-    3: { label: 'Высокий',  color: '#ef4444', ring: 'ring-red-400',    bg: 'bg-red-500',    border: '#ef4444' },
-  }
-
-  const STATUSES = {
+const STATUSES = {
     todo:       { label: 'Нужно сделать', color: 'bg-gray-100 text-gray-500',           dot: 'bg-gray-400' },
     inprogress: { label: 'В работе',      color: 'bg-blue-100 text-blue-700',            dot: 'bg-blue-500' },
     pending:    { label: 'На апруве',     color: 'bg-yellow-100 text-yellow-700',        dot: 'bg-yellow-500' },
@@ -425,7 +419,7 @@ import '../styles/global.css';
 
     const sorted = appData.projects
       .filter(p => (p.status || 'inprogress') === homeTab)
-      .sort((a, b) => (b.priority || 2) - (a.priority || 2))
+      .sort((a, b) => a.title.localeCompare(b.title, 'ru'))
     const counts = {}
     for (const s of Object.keys(STATUSES)) counts[s] = appData.projects.filter(p => (p.status || 'inprogress') === s).length
 
@@ -461,15 +455,13 @@ import '../styles/global.css';
 
       html += `
         <div data-action="open-project" data-project-id="${proj.id}"
-          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
+          draggable="true" data-drag-card
+          class="rounded-xl cursor-grab hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
           <div class="px-4 pt-4 pb-3 flex-1">
             <div class="flex items-start justify-between mb-2.5">
               <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
-              <div class="flex items-center gap-1.5 flex-shrink-0">
-                <div class="w-3 h-3 rounded-sm flex-shrink-0" style="background:${PRIORITIES[proj.priority || 2].border}" title="${PRIORITIES[proj.priority || 2].label}"></div>
-                <button data-action="delete-project" data-project-id="${proj.id}"
-                  class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm">✕</button>
-              </div>
+              <button data-action="delete-project" data-project-id="${proj.id}"
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5">✕</button>
             </div>
             <div class="mb-2.5">
               <button data-action="cycle-status" data-project-id="${proj.id}"
@@ -554,16 +546,7 @@ import '../styles/global.css';
                 dl.urgency === 'orange' ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30' :
                 dl.urgency === 'yellow' ? 'bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25' :
                                           'bg-white/8 text-white/50 hover:bg-white/12'
-              return `
-              <div class="flex items-center gap-1 bg-white/5 rounded-full px-2 py-1">
-                <span class="text-xs text-white/40 mr-0.5">приоритет</span>
-                ${[1,2,3].map(p => `
-                  <button data-action="set-priority" data-project-id="${proj.id}" data-priority="${p}"
-                    class="w-4 h-4 rounded-sm transition-all hover:scale-110 flex-shrink-0 ${(proj.priority||2)===p ? 'ring-2 ring-white/40 ring-offset-1 ring-offset-transparent' : 'opacity-50 hover:opacity-80'}"
-                    style="background:${PRIORITIES[p].border}" title="${PRIORITIES[p].label}">
-                  </button>`).join('')}
-              </div>
-              <button data-action="edit-deadline" data-project-id="${proj.id}"
+              return `<button data-action="edit-deadline" data-project-id="${proj.id}"
                 class="text-xs px-2.5 py-1 rounded-full transition-colors ${badgeColor} flex items-center gap-1.5">
                 <span>⏱</span>
                 <span>${dl ? dl.label : 'дедлайн'}</span>
@@ -765,6 +748,39 @@ import '../styles/global.css';
 
   function initCardDrag() {
     const tabs = document.querySelectorAll('[data-drop-tab]')
+
+    document.querySelectorAll('[data-drag-card]').forEach(card => {
+      card.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', card.dataset.projectId)
+        e.dataTransfer.effectAllowed = 'move'
+        setTimeout(() => card.classList.add('opacity-40'), 0)
+        tabs.forEach(t => t.classList.add('ring-2','ring-white/20'))
+      })
+      card.addEventListener('dragend', () => {
+        card.classList.remove('opacity-40')
+        tabs.forEach(t => t.classList.remove('ring-2','ring-white/20','ring-white/60','bg-white/15','scale-105'))
+      })
+      card.addEventListener('dragover', e => {
+        e.preventDefault(); e.stopPropagation()
+        card.classList.add('ring-2','ring-blue-400','ring-inset')
+      })
+      card.addEventListener('dragleave', e => {
+        if (!card.contains(e.relatedTarget)) card.classList.remove('ring-2','ring-blue-400','ring-inset')
+      })
+      card.addEventListener('drop', e => {
+        e.preventDefault(); e.stopPropagation()
+        card.classList.remove('ring-2','ring-blue-400','ring-inset')
+        const fromId = e.dataTransfer.getData('text/plain')
+        const toId = card.dataset.projectId
+        if (!fromId || fromId === toId) return
+        const fi = appData.projects.findIndex(p => p.id === fromId)
+        const ti = appData.projects.findIndex(p => p.id === toId)
+        if (fi === -1 || ti === -1) return
+        ;[appData.projects[fi], appData.projects[ti]] = [appData.projects[ti], appData.projects[fi]]
+        save(); renderHome()
+      })
+    })
+
     tabs.forEach(tab => {
       tab.addEventListener('dragover', e => {
         e.preventDefault()
@@ -948,12 +964,6 @@ import '../styles/global.css';
     if (!el) return
     const a = el.dataset.action
 
-    if (a === 'set-priority') {
-      e.stopPropagation()
-      const proj = getProject(el.dataset.projectId)
-      if (proj) { proj.priority = Number(el.dataset.priority); save(); renderHome() }
-      return
-    }
     if (a === 'set-tab') { homeTab = el.dataset.tab; renderHome(); return }
     if (a === 'cycle-status') {
       e.stopPropagation()

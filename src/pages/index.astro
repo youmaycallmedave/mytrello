@@ -274,6 +274,25 @@ import '../styles/global.css';
     link.href = 'data:image/svg+xml,' + encodeURIComponent(timerFaviconSVG(color))
   }
 
+  function timerColor(secs) {
+    return secs < 1800 ? '#22c55e' : secs < 3600 ? '#eab308' : '#ef4444'
+  }
+
+  function applyActiveRowStyle(row, secs) {
+    const c = timerColor(secs)
+    row.style.borderLeft = `3px solid ${c}99`
+    row.style.backgroundColor = `${c}12`
+    row.style.borderRadius = '0 8px 8px 0'
+    row.style.paddingLeft = '6px'
+  }
+
+  function clearActiveRowStyle(row) {
+    row.style.borderLeft = ''
+    row.style.backgroundColor = ''
+    row.style.borderRadius = ''
+    row.style.paddingLeft = ''
+  }
+
   function startTimerTick() {
     clearInterval(timerInterval)
     timerInterval = setInterval(() => {
@@ -283,24 +302,32 @@ import '../styles/global.css';
       if (el) el.textContent = fmtDuration(secs)
       document.title = `▶ ${activeTimer.projTitle} › ${activeTimer.stTitle} › ${activeTimer.taskTitle} — ${fmtDuration(secs)}`
       setFavicon(true, secs)
+      // update active row color + dot color
+      const row = document.querySelector('[data-active-task-row]')
+      if (row) {
+        applyActiveRowStyle(row, secs)
+        const dot = row.querySelector('[data-timer-dot]')
+        if (dot) dot.style.background = timerColor(secs)
+      }
     }, 1000)
   }
 
   function updateTimerButtons() {
+    const secs = activeTimer ? Math.floor((Date.now() - activeTimer.startedAt) / 1000) : 0
     document.querySelectorAll('[data-timer-task-id]').forEach(btn => {
       const isActive = activeTimer &&
         btn.dataset.timerTaskId === activeTimer.taskId &&
         btn.dataset.timerStId === activeTimer.stId
+      const row = btn.closest('[data-drag-task]')
       if (isActive) {
-        btn.textContent = '⏹'
-        btn.className = btn.className
-          .replace('text-white/20','text-red-400')
-          .replace('opacity-0 group-hover/task:opacity-100','opacity-100')
+        const c = timerColor(secs)
+        btn.innerHTML = `<span style="display:flex;align-items:center;gap:3px"><span data-timer-dot style="width:7px;height:7px;border-radius:50%;background:${c};animation:pulse 1.5s ease-in-out infinite"></span>⏹</span>`
+        btn.className = 'flex-shrink-0 px-1.5 py-1.5 transition-all text-xs text-white/70 opacity-100'
+        if (row) { row.setAttribute('data-active-task-row', ''); applyActiveRowStyle(row, secs) }
       } else {
-        btn.textContent = '▶'
-        btn.className = btn.className
-          .replace('text-red-400','text-white/20')
-          .replace('opacity-100','opacity-0 group-hover/task:opacity-100')
+        btn.innerHTML = '▶'
+        btn.className = 'flex-shrink-0 px-1.5 py-1.5 transition-all text-xs text-white/20 hover:text-green-400 opacity-0 group-hover/task:opacity-100'
+        if (row) { row.removeAttribute('data-active-task-row'); clearActiveRowStyle(row) }
       }
     })
     updateHeaderTimer()
@@ -1187,9 +1214,17 @@ import '../styles/global.css';
 
     const tasksHtml = st.tasks.map(task => {
       const isActive = activeTimer?.taskId === task.id && activeTimer?.stId === st.id
+      const initSecs = isActive ? Math.floor((Date.now() - activeTimer.startedAt) / 1000) : 0
+      const c = isActive ? timerColor(initSecs) : null
+      const rowStyle = isActive ? `border-left:3px solid ${c}99;background-color:${c}12;border-radius:0 8px 8px 0;padding-left:6px` : ''
+      const timerBtn = isActive
+        ? `<span style="display:flex;align-items:center;gap:3px"><span data-timer-dot style="width:7px;height:7px;border-radius:50%;background:${c};animation:pulse 1.5s ease-in-out infinite"></span>⏹</span>`
+        : '▶'
       return `
       <div
         class="flex items-center gap-1.5 rounded-lg hover:bg-white/5 group/task transition-colors"
+        style="${rowStyle}"
+        ${isActive ? 'data-active-task-row' : ''}
         draggable="true"
         data-drag-task
         data-proj-id="${proj.id}"
@@ -1218,8 +1253,8 @@ import '../styles/global.css';
           data-timer-st-id="${st.id}"
           data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
           class="flex-shrink-0 px-1.5 py-1.5 transition-all text-xs
-            ${isActive ? 'text-red-400 opacity-100' : 'text-white/20 hover:text-green-400 opacity-0 group-hover/task:opacity-100'}"
-        >${isActive ? '⏹' : '▶'}</button>
+            ${isActive ? 'text-white/70 opacity-100' : 'text-white/20 hover:text-green-400 opacity-0 group-hover/task:opacity-100'}"
+        >${timerBtn}</button>
         <button data-action="delete-task"
           data-project-id="${proj.id}" data-subtask-id="${st.id}" data-task-id="${task.id}"
           class="opacity-0 group-hover/task:opacity-100 transition-opacity text-white/25 hover:text-red-400 text-xs flex-shrink-0 px-1.5 py-1.5">✕</button>

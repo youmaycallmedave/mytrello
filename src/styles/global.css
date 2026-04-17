@@ -30,6 +30,11 @@ textarea {
 .drag-over-proj-above { box-shadow: 0 -3px 0 #60a5fa; }
 .drag-over-proj-below { box-shadow: 0 3px 0 #60a5fa; }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
 [contenteditable][data-placeholder]:empty::before {
   content: attr(data-placeholder);
   color: rgba(255,255,255,0.2);

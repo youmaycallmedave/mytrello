@@ -375,13 +375,13 @@ const STATUSES = {
       .eq('user_id', currentSession.user.id)
       .eq('project_id', projId)
       .order('started_at', { ascending: false })
-      .limit(100)
+      .limit(200)
     if (error || !data?.length) {
       container.innerHTML = `
         <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Время</span>
+          <span class="text-sm font-semibold text-white/50">Трекинг времени</span>
         </div>
-        <p class="text-white/20 text-xs text-center py-3">Нет записей</p>`
+        <p class="text-white/20 text-sm text-center py-6">Нет записей — запусти таймер на таске ▶</p>`
       return
     }
     const totalSeconds = data.reduce((sum, e) => sum + e.duration_seconds, 0)
@@ -396,35 +396,50 @@ const STATUSES = {
     const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
     const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0)
     let html = `
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Время</span>
-        <span class="text-xs font-mono font-medium text-white/50">${fmtDuration(totalSeconds)}</span>
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-sm font-semibold text-white/50">Трекинг времени</span>
+        <span class="text-sm font-mono font-medium text-white/50">итого: ${fmtDuration(totalSeconds)}</span>
       </div>
-      <div class="flex flex-col gap-3 max-h-[420px] overflow-y-auto pr-1">`
+      <div class="flex flex-col gap-4">`
     for (const [, { date, entries }] of byDay) {
       const dayTotal = entries.reduce((s, e) => s + e.duration_seconds, 0)
       const dMid = new Date(date); dMid.setHours(0,0,0,0)
       const diff = Math.round((todayMidnight - dMid) / 86400000)
-      const dateLabel = diff === 0 ? 'Сегодня' : diff === 1 ? 'Вчера' : `${dayNames[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`
+      const dateLabel = diff === 0 ? 'Сегодня' : diff === 1 ? 'Вчера' : `${dayNames[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`
       html += `
         <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-xs text-white/35 font-medium">${dateLabel}</span>
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">${dateLabel}</span>
+            <div class="flex-1 h-px bg-white/5"></div>
             <span class="text-xs font-mono text-white/35">${fmtDuration(dayTotal)}</span>
           </div>
-          ${entries.map(e => {
-            const start = new Date(e.started_at)
-            return `<div class="flex items-start gap-2 py-1 pl-2 border-l-2 border-blue-500/25 mb-1.5">
-              <div class="flex-1 min-w-0">
-                <div class="text-xs text-white/65 truncate">${esc(e.task_title)}</div>
-                ${e.subtask_title ? `<div class="text-xs text-white/30 truncate">${esc(e.subtask_title)}</div>` : ''}
-              </div>
-              <div class="text-right flex-shrink-0">
-                <div class="text-xs font-mono text-white/55">${fmtDuration(e.duration_seconds)}</div>
-                <div class="text-xs text-white/25">${fmtHHMM(start)}</div>
-              </div>
-            </div>`
-          }).join('')}
+          <div class="flex flex-col gap-1.5">
+            ${entries.map(e => {
+              const start = new Date(e.started_at)
+              const end = new Date(e.ended_at)
+              return `
+                <div class="flex items-center gap-3 bg-white/3 hover:bg-white/5 rounded-lg px-3 py-2.5 group/entry transition-colors">
+                  <div class="w-1 h-8 rounded-full bg-blue-500/40 flex-shrink-0"></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm text-white/75 truncate">${esc(e.task_title)}</div>
+                    ${e.subtask_title ? `<div class="text-xs text-white/35 truncate">${esc(e.subtask_title)}</div>` : ''}
+                  </div>
+                  <div class="text-xs text-white/30 flex-shrink-0 hidden sm:block">${fmtHHMM(start)}–${fmtHHMM(end)}</div>
+                  <span
+                    data-action="edit-time-entry"
+                    data-entry-id="${e.id}"
+                    data-duration="${e.duration_seconds}"
+                    class="text-sm font-mono font-medium text-white/60 cursor-pointer hover:text-blue-300 hover:underline transition-colors flex-shrink-0"
+                    title="Нажми чтобы изменить"
+                  >${fmtDuration(e.duration_seconds)}</span>
+                  <button
+                    data-action="delete-time-entry"
+                    data-entry-id="${e.id}"
+                    class="opacity-0 group-hover/entry:opacity-100 transition-opacity text-white/20 hover:text-red-400 text-xs flex-shrink-0 px-1"
+                  >✕</button>
+                </div>`
+            }).join('')}
+          </div>
         </div>`
     }
     html += `</div>`
@@ -926,18 +941,18 @@ const STATUSES = {
             </div>
           </div>
 
-          <!-- RIGHT: notes + time -->
-          <div class="w-full lg:w-72 flex-shrink-0 flex flex-col gap-5">
+          <!-- RIGHT: notes -->
+          <div class="w-full lg:w-72 flex-shrink-0">
             ${renderNotesColumn(proj)}
-            <div id="project-time-history" class="bg-[#282e33] rounded-xl p-4">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Время</span>
-              </div>
-              <p class="text-white/20 text-xs text-center py-2">Загрузка...</p>
-            </div>
           </div>
 
         </div>
+
+        <!-- Time history — full width -->
+        <div id="project-time-history" class="mt-5 bg-[#282e33] rounded-xl p-5">
+          <p class="text-white/20 text-sm text-center py-4">Загрузка...</p>
+        </div>
+
       </div>`
   }
 
@@ -1258,6 +1273,35 @@ const STATUSES = {
     const a = el.dataset.action
 
     if (a === 'go-history') { go('history'); return }
+    if (a === 'delete-time-entry') {
+      e.stopPropagation()
+      if (!confirm('Удалить запись?')) return
+      await sb.from('time_entries').delete().eq('id', el.dataset.entryId)
+      renderProjectTimeHistory(currentProjectId)
+      return
+    }
+    if (a === 'edit-time-entry') {
+      e.stopPropagation()
+      const entryId = el.dataset.entryId
+      const currentMins = Math.round(parseInt(el.dataset.duration) / 60) || 1
+      const inp = document.createElement('input')
+      inp.type = 'number'; inp.value = currentMins; inp.min = 1; inp.max = 9999
+      inp.className = 'w-16 bg-[#1d2125] border border-blue-500 rounded px-1.5 py-0.5 text-sm font-mono text-white focus:outline-none text-center'
+      inp.title = 'минуты'
+      el.replaceWith(inp); inp.focus(); inp.select()
+      const save = async () => {
+        const mins = parseInt(inp.value)
+        if (!mins || mins < 1) { renderProjectTimeHistory(currentProjectId); return }
+        await sb.from('time_entries').update({ duration_seconds: mins * 60 }).eq('id', entryId)
+        renderProjectTimeHistory(currentProjectId)
+      }
+      inp.addEventListener('blur', save)
+      inp.addEventListener('keydown', e2 => {
+        if (e2.key === 'Enter') { e2.preventDefault(); save() }
+        if (e2.key === 'Escape') renderProjectTimeHistory(currentProjectId)
+      })
+      return
+    }
     if (a === 'toggle-timer') {
       e.stopPropagation()
       const { projectId, subtaskId, taskId } = el.dataset

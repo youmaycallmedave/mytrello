@@ -179,15 +179,15 @@ import '../styles/global.css';
     save()
   }
 
-  function cardBg(updatedAt) {
-    if (!updatedAt) return { bg: '#f7f8f9', fresh: true }
+  function stalenessBar(updatedAt) {
+    if (!updatedAt) return { pct: 0, color: '#22c55e' }
     const days = (Date.now() - updatedAt) / 86400000
-    const t = Math.min(days / 14, 1)
-    // white → yellow → orange over 14 days
-    const h = Math.round(48 - 16 * t)   // 48 (yellow) → 32 (orange)
-    const s = Math.round(95 * t)         // 0% → 95%
-    const l = Math.round(97 - 25 * t)   // 97% → 72%
-    return { bg: `hsl(${h},${s}%,${l}%)`, fresh: t < 0.15 }
+    const pct = Math.min(days / 7, 1) * 100  // full bar = 7 days
+    const color = pct < 30 ? '#22c55e'        // green
+      : pct < 55 ? '#eab308'                  // yellow
+      : pct < 80 ? '#f97316'                  // orange
+      : '#ef4444'                             // red
+    return { pct, color }
   }
 
   function timeAgo(ts) {
@@ -420,7 +420,7 @@ import '../styles/global.css';
       const allDone = total > 0 && done === total
       const ago = timeAgo(proj.updatedAt)
       const dl = deadlineInfo(proj.deadline)
-      const { bg } = cardBg(proj.updatedAt)
+      const stale = stalenessBar(proj.updatedAt)
 
       const dlBadgeColor = !dl ? '' :
         dl.urgency === 'red'    ? 'bg-red-500/20 text-red-700' :
@@ -430,8 +430,7 @@ import '../styles/global.css';
 
       html += `
         <div data-action="open-project" data-project-id="${proj.id}"
-          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm"
-          style="background:${bg}">
+          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
           <div class="px-4 pt-4 pb-3 flex-1">
             <div class="flex items-start justify-between mb-2.5">
               <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
@@ -444,7 +443,7 @@ import '../styles/global.css';
               <span class="text-gray-300">·</span>
               <span>${total} тасков</span>
             </div>
-            <div class="h-1.5 bg-black/10 rounded-full overflow-hidden mb-1.5">
+            <div class="h-1.5 bg-black/8 rounded-full overflow-hidden mb-1.5">
               <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-green-500' : 'bg-blue-500'}"
                 style="width:${pct}%"></div>
             </div>
@@ -457,15 +456,20 @@ import '../styles/global.css';
           <div class="px-4 pb-3 flex flex-wrap gap-1.5">
             ${proj.subtasks.slice(0,4).map(s => {
               const sp = subtaskProgress(s)
-              return `<span class="text-xs bg-black/8 text-gray-600 px-2 py-0.5 rounded-full">
+              return `<span class="text-xs bg-black/6 text-gray-600 px-2 py-0.5 rounded-full">
                 ${esc(s.title)}${sp.total ? ` · ${sp.done}/${sp.total}` : ''}
               </span>`
             }).join('')}
             ${proj.subtasks.length > 4 ? `<span class="text-xs text-gray-400 px-1">+${proj.subtasks.length-4}</span>` : ''}
           </div>` : ''}
-          ${ago ? `<div class="px-4 pb-3 border-t border-black/8 pt-2.5 mt-1">
-            <span class="text-xs text-gray-400">обновлён ${ago}</span>
-          </div>` : ''}
+          <div class="flex items-center justify-between px-4 pb-2 pt-1">
+            <span class="text-xs text-gray-400">${ago ? `обновлён ${ago}` : ''}</span>
+          </div>
+          <!-- stale bar -->
+          <div class="h-1 bg-black/6 w-full">
+            <div class="h-full transition-all duration-700 rounded-br-xl ${stale.pct < 1 ? 'rounded-bl-xl' : ''}"
+              style="width:${stale.pct}%; background:${stale.color}"></div>
+          </div>
         </div>`
     }
 

@@ -417,8 +417,7 @@ import '../styles/global.css';
       return
     }
 
-    const tabProjects = appData.projects.filter(p => (p.status || 'inprogress') === homeTab)
-    const sorted = sortProjects(tabProjects)
+    const sorted = appData.projects.filter(p => (p.status || 'inprogress') === homeTab)
     const counts = {}
     for (const s of Object.keys(STATUSES)) counts[s] = appData.projects.filter(p => (p.status || 'inprogress') === s).length
 
@@ -747,8 +746,13 @@ import '../styles/global.css';
 
   function initCardDrag() {
     const tabs = document.querySelectorAll('[data-drop-tab]')
+    const cards = document.querySelectorAll('[data-drag-card]')
 
-    document.querySelectorAll('[data-drag-card]').forEach(card => {
+    function clearCardHighlight() {
+      cards.forEach(c => c.classList.remove('ring-2', 'ring-blue-400', 'ring-inset'))
+    }
+
+    cards.forEach(card => {
       card.addEventListener('dragstart', e => {
         e.dataTransfer.setData('text/plain', card.dataset.projectId)
         e.dataTransfer.effectAllowed = 'move'
@@ -757,7 +761,36 @@ import '../styles/global.css';
       })
       card.addEventListener('dragend', () => {
         card.classList.remove('opacity-40', 'scale-95')
+        clearCardHighlight()
         tabs.forEach(t => t.classList.remove('ring-2','ring-white/20','ring-white/60','bg-white/15','scale-105'))
+      })
+
+      // card → card reorder
+      card.addEventListener('dragover', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        clearCardHighlight()
+        if (card.dataset.projectId !== e.dataTransfer.types[0]) {
+          card.classList.add('ring-2', 'ring-blue-400', 'ring-inset')
+        }
+      })
+      card.addEventListener('dragleave', e => {
+        if (!card.contains(e.relatedTarget)) {
+          card.classList.remove('ring-2', 'ring-blue-400', 'ring-inset')
+        }
+      })
+      card.addEventListener('drop', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const projId = e.dataTransfer.getData('text/plain')
+        clearCardHighlight()
+        if (!projId || projId === card.dataset.projectId) return
+        const fromIdx = appData.projects.findIndex(p => p.id === projId)
+        const toIdx = appData.projects.findIndex(p => p.id === card.dataset.projectId)
+        if (fromIdx === -1 || toIdx === -1) return
+        const [proj] = appData.projects.splice(fromIdx, 1)
+        appData.projects.splice(toIdx, 0, proj)
+        save(); renderHome()
       })
     })
 

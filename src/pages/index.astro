@@ -748,47 +748,31 @@ import '../styles/global.css';
     const container = document.getElementById('cards-container')
     if (!container) return
     const tabs = document.querySelectorAll('[data-drop-tab]')
-    let ph = null   // placeholder element
-    let srcId = null
+    let insertBeforeId = null  // project id before which to insert; null = append at end
 
-    function getOrCreatePh() {
-      if (!ph) {
-        ph = document.createElement('div')
-        ph.className = 'rounded-xl border-2 border-dashed border-blue-400/60 bg-blue-400/5'
-        ph.style.minHeight = '160px'
-      }
-      return ph
+    function clearLines() {
+      container.querySelectorAll('[data-drag-card]').forEach(c =>
+        c.classList.remove('card-drop-before', 'card-drop-after'))
     }
 
-    function removePh() { ph?.remove() }
-
-    function getInsertIndex() {
-      if (!ph?.parentNode) return appData.projects.length
-      const siblings = [...ph.parentNode.children]
-      const phPos = siblings.indexOf(ph)
-      for (let i = phPos + 1; i < siblings.length; i++) {
-        const id = siblings[i].dataset?.projectId
-        if (id && id !== srcId) return appData.projects.findIndex(p => p.id === id)
-      }
-      return appData.projects.length
-    }
-
-    function doReorder(projId) {
-      const toIdx = getInsertIndex()
-      removePh()
+    function doInsert(projId) {
+      clearLines()
       if (!projId) { renderHome(); return }
       const fromIdx = appData.projects.findIndex(p => p.id === projId)
       if (fromIdx === -1) { renderHome(); return }
       const [proj] = appData.projects.splice(fromIdx, 1)
-      const adj = toIdx > fromIdx ? toIdx - 1 : toIdx
-      appData.projects.splice(Math.max(0, adj), 0, proj)
+      if (insertBeforeId) {
+        const toIdx = appData.projects.findIndex(p => p.id === insertBeforeId)
+        appData.projects.splice(toIdx === -1 ? appData.projects.length : toIdx, 0, proj)
+      } else {
+        appData.projects.push(proj)
+      }
       save(); renderHome()
     }
 
-    document.querySelectorAll('[data-drag-card]').forEach(card => {
+    container.querySelectorAll('[data-drag-card]').forEach(card => {
       card.addEventListener('dragstart', e => {
-        srcId = card.dataset.projectId
-        e.dataTransfer.setData('text/plain', srcId)
+        e.dataTransfer.setData('text/plain', card.dataset.projectId)
         e.dataTransfer.effectAllowed = 'move'
         setTimeout(() => card.classList.add('opacity-30'), 0)
         tabs.forEach(t => t.classList.add('ring-2', 'ring-white/20'))
@@ -796,42 +780,44 @@ import '../styles/global.css';
 
       card.addEventListener('dragend', () => {
         card.classList.remove('opacity-30')
-        removePh(); ph = null; srcId = null
+        clearLines()
+        insertBeforeId = null
         tabs.forEach(t => t.classList.remove('ring-2','ring-white/20','ring-white/60','bg-white/15','scale-105'))
       })
 
       card.addEventListener('dragover', e => {
         e.preventDefault(); e.stopPropagation()
-        const p = getOrCreatePh()
+        clearLines()
         const rect = card.getBoundingClientRect()
-        if (e.clientX < rect.left + rect.width / 2) {
-          if (p.nextSibling !== card) container.insertBefore(p, card)
+        const isLeft = e.clientX < rect.left + rect.width / 2
+        if (isLeft) {
+          card.classList.add('card-drop-before')
+          insertBeforeId = card.dataset.projectId
         } else {
-          if (card.nextSibling !== p) container.insertBefore(p, card.nextSibling)
+          card.classList.add('card-drop-after')
+          // insert before the NEXT card in DOM
+          const allCards = [...container.querySelectorAll('[data-drag-card]')]
+          const nextCard = allCards[allCards.indexOf(card) + 1]
+          insertBeforeId = nextCard ? nextCard.dataset.projectId : null
+        }
+      })
+
+      card.addEventListener('dragleave', e => {
+        if (!card.contains(e.relatedTarget)) {
+          card.classList.remove('card-drop-before', 'card-drop-after')
         }
       })
 
       card.addEventListener('drop', e => {
         e.preventDefault(); e.stopPropagation()
-        doReorder(e.dataTransfer.getData('text/plain'))
+        doInsert(e.dataTransfer.getData('text/plain'))
       })
-    })
-
-    // drop on empty container area → append at end
-    container.addEventListener('dragover', e => {
-      e.preventDefault()
-      const p = getOrCreatePh()
-      if (!p.parentNode) container.appendChild(p)
-    })
-    container.addEventListener('drop', e => {
-      e.preventDefault()
-      doReorder(e.dataTransfer.getData('text/plain'))
     })
 
     tabs.forEach(tab => {
       tab.addEventListener('dragover', e => {
         e.preventDefault()
-        removePh()
+        clearLines()
         tabs.forEach(t => t.classList.remove('ring-white/60','bg-white/15','scale-105'))
         tab.classList.add('ring-white/60', 'bg-white/15', 'scale-105')
       })
@@ -841,7 +827,7 @@ import '../styles/global.css';
       })
       tab.addEventListener('drop', e => {
         e.preventDefault()
-        ph = null; srcId = null
+        insertBeforeId = null
         const projId = e.dataTransfer.getData('text/plain')
         const proj = getProject(projId)
         if (proj && proj.status !== tab.dataset.dropTab) {

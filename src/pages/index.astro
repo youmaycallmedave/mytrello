@@ -882,10 +882,12 @@ import '../styles/global.css';
     </div>`
     app.innerHTML = html
     renderTodayActivity()
+    initHomeDragDrop()
 
     document.getElementById('home-search').addEventListener('input', e => {
       homeSearch = e.target.value
       document.getElementById('cards-container').innerHTML = renderCardsHTML()
+      initHomeDragDrop()
     })
   }
 
@@ -894,7 +896,6 @@ import '../styles/global.css';
     const filtered = appData.projects
       .filter(p => (p.status || 'inprogress') === homeTab)
       .filter(p => !q || p.title.toLowerCase().includes(q))
-      .sort((a, b) => a.title.localeCompare(b.title, 'ru'))
 
     if (!filtered.length) return `<div class="col-span-3 py-12 text-center text-white/25 text-sm">
       ${q ? `Ничего не найдено по «${esc(homeSearch)}»` : 'Нет проектов в этой категории'}
@@ -911,12 +912,17 @@ import '../styles/global.css';
                                   'bg-black/8 text-gray-500'
       return `
         <div data-action="open-project" data-project-id="${proj.id}"
-          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
+          data-drag-project
+          draggable="true"
+          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white select-none">
           <div class="px-4 pt-4 pb-3 flex-1">
             <div class="flex items-start justify-between mb-2.5">
-              <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
+              <div class="flex items-start gap-1.5 flex-1 min-w-0">
+                <span class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab text-gray-300 select-none text-base flex-shrink-0 mt-0.5 transition-opacity">⠿</span>
+                <h2 class="font-bold text-base leading-tight text-gray-900">${esc(proj.title)}</h2>
+              </div>
               <button data-action="delete-project" data-project-id="${proj.id}"
-                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5">✕</button>
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5 ml-2">✕</button>
             </div>
             <div class="mb-2.5">
               <button data-action="cycle-status" data-project-id="${proj.id}"
@@ -1324,6 +1330,54 @@ import '../styles/global.css';
         else if (isBelow) toIdx++
         dstSt.tasks.splice(toIdx, 0, task)
         saveProject(); rerenderProject()
+      })
+    })
+  }
+
+  function clearHomeDragOver() {
+    document.querySelectorAll('.drag-over-proj-above, .drag-over-proj-below')
+      .forEach(el => el.classList.remove('drag-over-proj-above', 'drag-over-proj-below'))
+  }
+
+  function initHomeDragDrop() {
+    const container = document.getElementById('cards-container')
+    if (!container) return
+    container.querySelectorAll('[data-drag-project]').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        allowDrag = !!e.target.closest('.drag-handle')
+      })
+      el.addEventListener('dragstart', e => {
+        if (!allowDrag) { e.preventDefault(); return }
+        dragState = { type: 'project', projId: el.dataset.projectId }
+        el.classList.add('dragging')
+        e.dataTransfer.effectAllowed = 'move'
+      })
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging')
+        clearHomeDragOver()
+        dragState = null
+      })
+      el.addEventListener('dragover', e => {
+        if (dragState?.type !== 'project' || el.dataset.projectId === dragState.projId) return
+        e.preventDefault()
+        clearHomeDragOver()
+        const rect = el.getBoundingClientRect()
+        el.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-proj-above' : 'drag-over-proj-below')
+      })
+      el.addEventListener('drop', e => {
+        if (dragState?.type !== 'project') return
+        e.preventDefault()
+        const isBelow = el.classList.contains('drag-over-proj-below')
+        clearHomeDragOver()
+        const fromIdx = appData.projects.findIndex(p => p.id === dragState.projId)
+        const [item] = appData.projects.splice(fromIdx, 1)
+        let toIdx = appData.projects.findIndex(p => p.id === el.dataset.projectId)
+        if (toIdx === -1) toIdx = appData.projects.length
+        else if (isBelow) toIdx++
+        appData.projects.splice(toIdx, 0, item)
+        save()
+        document.getElementById('cards-container').innerHTML = renderCardsHTML()
+        initHomeDragDrop()
       })
     })
   }

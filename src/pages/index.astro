@@ -455,8 +455,7 @@ const STATUSES = {
 
       html += `
         <div data-action="open-project" data-project-id="${proj.id}"
-          draggable="true" data-drag-card
-          class="rounded-xl cursor-grab hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
+          class="rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-200 group overflow-hidden border border-black/8 flex flex-col shadow-sm bg-white">
           <div class="px-4 pt-4 pb-3 flex-1">
             <div class="flex items-start justify-between mb-2.5">
               <h2 class="font-bold text-base leading-tight pr-2 text-gray-900">${esc(proj.title)}</h2>
@@ -746,60 +745,7 @@ const STATUSES = {
       </div>`
   }
 
-  function initCardDrag() {
-    const tabs = document.querySelectorAll('[data-drop-tab]')
-
-    document.querySelectorAll('[data-drag-card]').forEach(card => {
-      card.addEventListener('dragstart', e => {
-        e.dataTransfer.setData('text/plain', card.dataset.projectId)
-        e.dataTransfer.effectAllowed = 'move'
-        setTimeout(() => card.classList.add('opacity-40'), 0)
-        tabs.forEach(t => t.classList.add('ring-2','ring-white/20'))
-      })
-      card.addEventListener('dragend', () => {
-        card.classList.remove('opacity-40')
-        tabs.forEach(t => t.classList.remove('ring-2','ring-white/20','ring-white/60','bg-white/15','scale-105'))
-      })
-      card.addEventListener('dragover', e => {
-        e.preventDefault(); e.stopPropagation()
-        card.classList.add('ring-2','ring-blue-400','ring-inset')
-      })
-      card.addEventListener('dragleave', e => {
-        if (!card.contains(e.relatedTarget)) card.classList.remove('ring-2','ring-blue-400','ring-inset')
-      })
-      card.addEventListener('drop', e => {
-        e.preventDefault(); e.stopPropagation()
-        card.classList.remove('ring-2','ring-blue-400','ring-inset')
-        const fromId = e.dataTransfer.getData('text/plain')
-        const toId = card.dataset.projectId
-        if (!fromId || fromId === toId) return
-        const fi = appData.projects.findIndex(p => p.id === fromId)
-        const ti = appData.projects.findIndex(p => p.id === toId)
-        if (fi === -1 || ti === -1) return
-        ;[appData.projects[fi], appData.projects[ti]] = [appData.projects[ti], appData.projects[fi]]
-        save(); renderHome()
-      })
-    })
-
-    tabs.forEach(tab => {
-      tab.addEventListener('dragover', e => {
-        e.preventDefault()
-        tabs.forEach(t => t.classList.remove('ring-white/60','bg-white/15','scale-105'))
-        tab.classList.add('ring-white/60','bg-white/15','scale-105')
-      })
-      tab.addEventListener('dragleave', e => {
-        if (tab.contains(e.relatedTarget)) return
-        tab.classList.remove('ring-white/60','bg-white/15','scale-105')
-      })
-      tab.addEventListener('drop', e => {
-        e.preventDefault()
-        const projId = e.dataTransfer.getData('text/plain')
-        const proj = getProject(projId)
-        if (proj && proj.status !== tab.dataset.dropTab) { proj.status = tab.dataset.dropTab; save() }
-        renderHome()
-      })
-    })
-  }
+  function initCardDrag() {}
 
   function rerenderProject() {
     const scrollY = window.scrollY

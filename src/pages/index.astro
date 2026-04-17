@@ -33,6 +33,13 @@ import '../styles/global.css';
         class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
         История
       </button>
+      <button id="btn-backup"
+        class="hidden text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-md hover:bg-white/5"
+        title="Скачать бэкап">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+      </button>
       <span id="header-user-email" class="hidden text-xs text-white/30 max-w-[160px] truncate"></span>
       <button id="btn-new-project"
         class="hidden text-xs bg-blue-600 hover:bg-blue-500 transition-colors px-3 py-1.5 rounded-md font-medium">
@@ -295,6 +302,63 @@ import '../styles/global.css';
       hdr.classList.add('hidden')
       hdr.classList.remove('flex')
     }
+  }
+
+  // ─── BACKUP ──────────────────────────────────────────────────────────────────
+  const BACKUP_KEY = 'lastBackupAt'
+  const BACKUP_INTERVAL = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+  function daysSinceBackup() {
+    const last = parseInt(localStorage.getItem(BACKUP_KEY) || '0')
+    return Math.floor((Date.now() - last) / 86400000)
+  }
+
+  async function downloadBackup() {
+    const btn = document.getElementById('btn-backup')
+    if (btn) { btn.style.opacity = '0.4'; btn.style.pointerEvents = 'none' }
+
+    let timeEntries = []
+    if (currentSession) {
+      const { data } = await sb.from('time_entries').select('*').eq('user_id', currentSession.user.id)
+      if (data) timeEntries = data
+    }
+
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      appData,
+      timeEntries
+    }
+
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mytrello-backup-${new Date().toISOString().slice(0,10)}.json`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    localStorage.setItem(BACKUP_KEY, Date.now().toString())
+    if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = '' }
+    document.getElementById('backup-banner')?.remove()
+  }
+
+  function backupBannerHTML() {
+    const days = daysSinceBackup()
+    if (days < 7) return ''
+    const msg = days === 0 ? 'Ты ещё не делал бэкап' : `Последний бэкап ${days} дн назад`
+    return `
+      <div id="backup-banner" class="mb-5 flex items-center gap-3 bg-yellow-500/8 border border-yellow-500/20 rounded-xl px-4 py-3">
+        <svg class="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        <span class="text-sm text-white/60 flex-1">${msg}</span>
+        <button data-action="download-backup"
+          class="text-xs bg-yellow-500/15 hover:bg-yellow-500/25 text-yellow-300 px-3 py-1.5 rounded-lg transition-colors font-medium flex-shrink-0">
+          Скачать бэкап
+        </button>
+        <button data-action="snooze-backup" class="text-white/25 hover:text-white/50 transition-colors text-xs flex-shrink-0">Позже</button>
+      </div>`
   }
 
   async function saveTimerState() {
@@ -609,15 +673,18 @@ import '../styles/global.css';
     const emailEl = document.getElementById('header-user-email')
     const logoutBtn = document.getElementById('btn-logout')
     const historyBtn = document.getElementById('btn-history')
+    const backupBtn = document.getElementById('btn-backup')
     if (session) {
       emailEl.textContent = session.user.email
       emailEl.classList.remove('hidden')
       logoutBtn.classList.remove('hidden')
       historyBtn?.classList.remove('hidden')
+      backupBtn?.classList.remove('hidden')
     } else {
       emailEl.classList.add('hidden')
       logoutBtn.classList.add('hidden')
       historyBtn?.classList.add('hidden')
+      backupBtn?.classList.add('hidden')
     }
   }
 
@@ -790,6 +857,7 @@ import '../styles/global.css';
     for (const s of Object.keys(STATUSES)) counts[s] = appData.projects.filter(p => (p.status || 'inprogress') === s).length
 
     let html = `<div class="p-5 max-w-5xl mx-auto">
+      ${backupBannerHTML()}
       <!-- tabs + search -->
       <div class="flex items-center gap-2 mb-5 flex-wrap">
         <div class="flex gap-1 flex-wrap flex-1">
@@ -1319,6 +1387,11 @@ import '../styles/global.css';
     const a = el.dataset.action
 
     if (a === 'nav-home') { go(''); return }
+    if (a === 'download-backup') { await downloadBackup(); return }
+    if (a === 'snooze-backup') {
+      localStorage.setItem(BACKUP_KEY, (Date.now() - 6 * 24 * 60 * 60 * 1000).toString())
+      document.getElementById('backup-banner')?.remove(); return
+    }
     if (a === 'go-history') { go('history'); return }
     if (a === 'open-tracked-task') {
       pendingScrollTaskId = el.dataset.taskId
@@ -1647,6 +1720,7 @@ import '../styles/global.css';
   document.getElementById('btn-home').addEventListener('click', () => go(''))
   document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal)
   document.getElementById('btn-history').addEventListener('click', () => go('history'))
+  document.getElementById('btn-backup').addEventListener('click', downloadBackup)
   document.getElementById('btn-stop-timer').addEventListener('click', async () => {
     await stopTimer()
     if (!currentProjectId && location.hash !== '#history') renderTodayActivity()

@@ -493,11 +493,14 @@ import '../styles/global.css';
   async function renderTodayActivity() {
     const container = document.getElementById('today-activity')
     if (!container || !currentSession) return
+    const boardProjIds = projects().map(p => p.id)
+    if (!boardProjIds.length) return
     const today = new Date(); today.setHours(0,0,0,0)
     const { data, error } = await sb
       .from('time_entries')
       .select('*')
       .eq('user_id', currentSession.user.id)
+      .in('project_id', boardProjIds)
       .gte('started_at', today.toISOString())
       .order('started_at', { ascending: false })
     if (error || !data?.length) return
@@ -650,12 +653,11 @@ import '../styles/global.css';
         <div id="history-content" class="text-white/30 text-sm text-center py-12">Загрузка...</div>
       </div>`
     if (!currentSession) return
-    const { data, error } = await sb
-      .from('time_entries')
-      .select('*')
-      .eq('user_id', currentSession.user.id)
-      .order('started_at', { ascending: false })
-      .limit(500)
+    const boardProjIds = projects().map(p => p.id)
+    let query = sb.from('time_entries').select('*').eq('user_id', currentSession.user.id)
+    if (boardProjIds.length) query = query.in('project_id', boardProjIds)
+    else query = query.eq('project_id', 'none')
+    const { data, error } = await query.order('started_at', { ascending: false }).limit(500)
     if (error) { document.getElementById('history-content').textContent = 'Ошибка загрузки'; return }
     if (!data?.length) {
       document.getElementById('history-content').innerHTML = `

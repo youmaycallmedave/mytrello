@@ -82,6 +82,12 @@ import '../styles/global.css';
 
   function boardStatuses() { return currentBoard()?.statuses || DEFAULT_STATUSES }
   function statusById(id) { return boardStatuses().find(s => s.id === id) || boardStatuses()[0] }
+  function smartDefaultTab() {
+    const sts = boardStatuses()
+    const ps = projects()
+    const withProjects = sts.find(s => ps.some(p => (p.status || sts[0].id) === s.id))
+    return withProjects?.id || sts[0]?.id
+  }
 
   // ─── STATE ───────────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'my-trello-v2'
@@ -982,7 +988,7 @@ import '../styles/global.css';
     const statuses = boardStatuses()
     const counts = {}
     for (const s of statuses) counts[s.id] = projects().filter(p => (p.status || statuses[0].id) === s.id).length
-    if (!homeTab || !statuses.find(s => s.id === homeTab)) homeTab = statuses[0]?.id
+    if (!homeTab || !statuses.find(s => s.id === homeTab)) homeTab = smartDefaultTab()
 
     let html = `<div class="p-5 max-w-5xl mx-auto">
       ${backupBannerHTML()}
@@ -1653,7 +1659,7 @@ import '../styles/global.css';
       if (!confirm(msg)) return
       appData.boards = appData.boards.filter(b => b.id !== boardId)
       if (appData.activeBoardId === boardId) appData.activeBoardId = appData.boards[0]?.id
-      save(); homeTab = boardStatuses()[0]?.id; homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
+      save(); homeTab = smartDefaultTab(); homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
     if (a === 'manage-statuses') { showManageStatusesModal(); return }
     if (a === 'status-cycle-color') {
@@ -1697,7 +1703,7 @@ import '../styles/global.css';
     }
     if (a === 'switch-board') {
       appData.activeBoardId = el.dataset.boardId
-      save(); homeTab = boardStatuses()[0]?.id; homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
+      save(); homeTab = smartDefaultTab(); homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
     if (a === 'new-board') {
       openModal(`

@@ -18,6 +18,7 @@ import '../styles/global.css';
       </svg>
       <span class="font-semibold text-sm">My Trello</span>
     </button>
+    <div id="board-tabs" class="flex items-center gap-0.5"></div>
     <div id="header-breadcrumb" class="hidden items-center gap-2 text-sm min-w-0">
       <span class="text-white/30">/</span>
       <span id="header-project-name" class="text-white/70 truncate"></span>
@@ -80,7 +81,7 @@ import '../styles/global.css';
 
   // ─── STATE ───────────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'my-trello-v2'
-  let appData = { projects: [] }
+  let appData = { boards: [] }
   let currentProjectId = null
   let homeTab = 'inprogress'
   let homeSearch = ''
@@ -147,7 +148,8 @@ import '../styles/global.css';
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) appData = JSON.parse(raw)
     } catch (_) {}
-    if (!appData.projects?.length) seedDemo()
+    migrateData()
+    if (!projects().length) seedDemo()
   }
 
   async function loadFromDB() {
@@ -156,11 +158,11 @@ import '../styles/global.css';
       .select('data')
       .single()
     if (error || !data) {
-      // no DB row yet — fall back to localStorage (migration)
       loadLocal()
       return
     }
     appData = data.data
+    migrateData()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appData))
   }
 
@@ -186,7 +188,7 @@ import '../styles/global.css';
   // ─── DEMO DATA ───────────────────────────────────────────────────────────────
   function seedDemo() {
     appData = {
-      projects: [
+      boards: [{ id: 'work', name: 'Работа', emoji: '💼', projects: [
         {
           id: uid(), title: 'Собрать сайт', color: 'blue', updatedAt: Date.now(), deadline: null, status: 'inprogress',
           subtasks: [
@@ -219,11 +221,32 @@ import '../styles/global.css';
             { id: uid(), title: '💬 Клиент', content: 'Иванов Иван\nTelegram: @ivanov\nХочет синий цвет, без анимаций' },
           ]
         },
-      ]
+      ]}],
+      activeBoardId: 'work'
     }
   }
 
-  function getProject(id) { return appData.projects.find(p => p.id === id) }
+  function currentBoard() {
+    return appData.boards?.find(b => b.id === appData.activeBoardId) || appData.boards?.[0]
+  }
+  function projects() { return currentBoard()?.projects || [] }
+
+  function migrateData() {
+    if (!appData.boards) {
+      appData.boards = [{ id: 'work', name: 'Работа', emoji: '💼', projects: appData.projects || [] }]
+      appData.activeBoardId = 'work'
+      delete appData.projects
+    }
+    if (!appData.activeBoardId) appData.activeBoardId = appData.boards[0]?.id
+  }
+
+  function getProject(id) {
+    for (const b of (appData.boards || [])) {
+      const p = b.projects.find(p => p.id === id)
+      if (p) return p
+    }
+    return null
+  }
 
   function touchProject(id) {
     const p = getProject(id)
@@ -901,13 +924,31 @@ import '../styles/global.css';
     } else renderHome()
   }
 
+  function renderBoardTabs() {
+    const wrap = document.getElementById('board-tabs')
+    if (!wrap) return
+    wrap.innerHTML = (appData.boards || []).map(b => `
+      <button data-action="switch-board" data-board-id="${b.id}"
+        class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all
+          ${b.id === appData.activeBoardId
+            ? 'bg-white/10 text-white'
+            : 'text-white/35 hover:text-white/65 hover:bg-white/5'}">
+        <span>${b.emoji}</span>
+        <span class="hidden sm:inline">${esc(b.name)}</span>
+      </button>`).join('') +
+      `<button data-action="new-board"
+        class="flex items-center px-1.5 py-1 rounded-lg text-xs text-white/25 hover:text-white/60 hover:bg-white/5 transition-all ml-0.5"
+        title="Новая доска">+</button>`
+  }
+
   function renderHome() {
     document.getElementById('header-breadcrumb').classList.add('hidden')
     document.getElementById('btn-new-project').classList.remove('hidden')
+    renderBoardTabs()
 
     const app = document.getElementById('app')
 
-    if (!appData.projects.length) {
+    if (!projects().length) {
       app.innerHTML = `
         <div class="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
           <div class="text-5xl mb-4">📋</div>
@@ -922,7 +963,7 @@ import '../styles/global.css';
     }
 
     const counts = {}
-    for (const s of Object.keys(STATUSES)) counts[s] = appData.projects.filter(p => (p.status || 'inprogress') === s).length
+    for (const s of Object.keys(STATUSES)) counts[s] = projects().filter(p => (p.status || 'inprogress') === s).length
 
     let html = `<div class="p-5 max-w-5xl mx-auto">
       ${backupBannerHTML()}
@@ -961,7 +1002,7 @@ import '../styles/global.css';
 
   function renderCardsHTML() {
     const q = homeSearch.trim().toLowerCase()
-    const filtered = appData.projects
+    const filtered = projects()
       .filter(p => (p.status || 'inprogress') === homeTab)
       .filter(p => !q || p.title.toLowerCase().includes(q))
 
@@ -1465,12 +1506,13 @@ import '../styles/global.css';
         e.preventDefault()
         const isBelow = el.classList.contains('drag-over-proj-below')
         clearHomeDragOver()
-        const fromIdx = appData.projects.findIndex(p => p.id === dragState.projId)
-        const [item] = appData.projects.splice(fromIdx, 1)
-        let toIdx = appData.projects.findIndex(p => p.id === el.dataset.projectId)
-        if (toIdx === -1) toIdx = appData.projects.length
+        const ps = projects()
+        const fromIdx = ps.findIndex(p => p.id === dragState.projId)
+        const [item] = ps.splice(fromIdx, 1)
+        let toIdx = ps.findIndex(p => p.id === el.dataset.projectId)
+        if (toIdx === -1) toIdx = ps.length
         else if (isBelow) toIdx++
-        appData.projects.splice(toIdx, 0, item)
+        ps.splice(toIdx, 0, item)
         save()
         document.getElementById('cards-container').innerHTML = renderCardsHTML()
         initHomeDragDrop()
@@ -1542,6 +1584,37 @@ import '../styles/global.css';
     if (!el) return
     const a = el.dataset.action
 
+    if (a === 'switch-board') {
+      appData.activeBoardId = el.dataset.boardId
+      save(); homeTab = 'inprogress'; homeSearch = ''; go(''); return
+    }
+    if (a === 'new-board') {
+      openModal(`
+        <div class="p-5">
+          <h2 class="text-base font-bold mb-4">Новая доска</h2>
+          <div class="flex gap-2 mb-3">
+            <input id="new-board-emoji" type="text" value="📁" maxlength="2"
+              class="w-14 bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-center focus:outline-none focus:border-blue-500"/>
+            <input id="new-board-name" type="text" placeholder="Название доски..."
+              class="flex-1 bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"/>
+          </div>
+          <button data-action="confirm-new-board"
+            class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg py-2.5 text-sm font-semibold">
+            Создать доску
+          </button>
+        </div>`)
+      setTimeout(() => document.getElementById('new-board-name').focus(), 40)
+      return
+    }
+    if (a === 'confirm-new-board') {
+      const name = document.getElementById('new-board-name').value.trim()
+      if (!name) { document.getElementById('new-board-name').focus(); return }
+      const emoji = document.getElementById('new-board-emoji').value.trim() || '📁'
+      const newBoard = { id: uid(), name, emoji, projects: [] }
+      appData.boards.push(newBoard)
+      appData.activeBoardId = newBoard.id
+      save(); closeModal(); homeTab = 'inprogress'; homeSearch = ''; go(''); return
+    }
     if (a === 'nav-home') { go(''); return }
     if (a === 'download-backup') { await downloadBackup(); return }
     if (a === 'snooze-backup') {
@@ -1638,7 +1711,8 @@ import '../styles/global.css';
     if (a === 'delete-project') {
       e.stopPropagation()
       if (!confirm('Удалить проект?')) return
-      appData.projects = appData.projects.filter(p => p.id !== el.dataset.projectId)
+      const _b = appData.boards.find(b => b.projects.some(p => p.id === el.dataset.projectId))
+      if (_b) _b.projects = _b.projects.filter(p => p.id !== el.dataset.projectId)
       save(); render(); return
     }
     if (a === 'confirm-new-project') {
@@ -1646,7 +1720,7 @@ import '../styles/global.css';
       if (!title) { document.getElementById('new-proj-input').focus(); return }
       const deadline = document.getElementById('new-proj-deadline')?.value || null
       const proj = { id: uid(), title, color: 'blue', subtasks: [], notes: [], updatedAt: Date.now(), deadline: deadline || null, status: window._newProjStatus || 'inprogress' }
-      appData.projects.push(proj)
+      currentBoard().projects.push(proj)
       save(); closeModal(); go(`p/${proj.id}`); return
     }
     if (a === 'edit-project-title') {
@@ -1920,7 +1994,7 @@ import '../styles/global.css';
   // ─── ELAPSED TICK ────────────────────────────────────────────────────────────
   setInterval(() => {
     if (currentProjectId) return
-    for (const proj of appData.projects) {
+    for (const proj of projects()) {
       const el = document.getElementById(`elapsed-${proj.id}`)
       if (el) el.textContent = elapsedSince(proj.updatedAt)
     }

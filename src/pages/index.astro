@@ -801,42 +801,58 @@ import '../styles/global.css';
     const rect = sourceEl.getBoundingClientRect()
     const cx = rect.left + rect.width / 2
     const cy = rect.top + rect.height / 2
-    for (let i = 0; i < 6; i++) {
+
+    for (let i = 0; i < 8; i++) {
       setTimeout(() => {
         const coin = document.createElement('div')
-        const angle = -Math.PI / 2 + (i - 2.5) * 0.45 + (Math.random() - 0.5) * 0.3
-        const dist = 48 + Math.random() * 32
+        // wide random arc — mostly upward but can veer left/right
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5
+        const dist = 44 + Math.random() * 64
         const dx = Math.cos(angle) * dist
         const dy = Math.sin(angle) * dist
-        coin.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;z-index:9999;font-size:17px;pointer-events:none;transform:translate(-50%,-50%) scale(0);opacity:1;transition:none`
+        const spin = (Math.random() - 0.5) * 600
+        const size = 13 + Math.random() * 9
+        const dur = 480 + Math.random() * 280
+        // start from slightly randomised origin
+        const ox = cx + (Math.random() - 0.5) * 18
+        const oy = cy + (Math.random() - 0.5) * 10
+
+        coin.style.cssText = `position:fixed;left:${ox}px;top:${oy}px;z-index:9999;font-size:${size}px;pointer-events:none;transform:translate(-50%,-50%) scale(0) rotate(0deg);opacity:1;transition:none`
         coin.textContent = '🪙'
         document.body.appendChild(coin)
+
         requestAnimationFrame(() => {
-          coin.style.transition = 'all 0.6s cubic-bezier(0.2,0.8,0.3,1)'
-          coin.style.transform = `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(1.1)`
-          setTimeout(() => {
-            coin.style.transition = 'all 0.3s ease'
-            coin.style.opacity = '0'
-            coin.style.transform = `translate(calc(-50% + ${dx}px),calc(-50% + ${dy - 14}px)) scale(0.4)`
-            setTimeout(() => coin.remove(), 300)
-          }, 440)
+          requestAnimationFrame(() => {
+            coin.style.transition = `transform ${dur}ms cubic-bezier(0.12,0.8,0.25,1), opacity ${dur}ms ease`
+            coin.style.transform = `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(1.1) rotate(${spin}deg)`
+            setTimeout(() => {
+              coin.style.transition = 'transform 320ms ease-in, opacity 320ms ease-in'
+              coin.style.transform = `translate(calc(-50% + ${dx}px),calc(-50% + ${dy + 22}px)) scale(0.25) rotate(${spin + 120}deg)`
+              coin.style.opacity = '0'
+              setTimeout(() => coin.remove(), 320)
+            }, dur - 60)
+          })
         })
-      }, i * 35)
+      }, i * 38 + Math.random() * 25)
     }
+
     const badge = document.createElement('div')
-    badge.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;z-index:9999;color:#86efac;font-size:15px;font-weight:800;pointer-events:none;transform:translate(-50%,-50%) scale(0);opacity:0;text-shadow:0 0 12px #22c55e90;transition:none;white-space:nowrap`
+    const bx = cx + (Math.random() - 0.5) * 24
+    badge.style.cssText = `position:fixed;left:${bx}px;top:${cy}px;z-index:9999;color:#86efac;font-size:15px;font-weight:800;pointer-events:none;transform:translate(-50%,-50%) scale(0);opacity:0;text-shadow:0 0 14px #22c55ea0;transition:none;white-space:nowrap`
     badge.textContent = `+${amount} 🪙`
     document.body.appendChild(badge)
     requestAnimationFrame(() => {
-      badge.style.transition = 'all 0.4s cubic-bezier(0.175,0.885,0.32,1.4)'
-      badge.style.transform = 'translate(-50%,calc(-50% - 44px)) scale(1)'
-      badge.style.opacity = '1'
-      setTimeout(() => {
-        badge.style.transition = 'all 0.45s ease'
-        badge.style.opacity = '0'
-        badge.style.transform = 'translate(-50%,calc(-50% - 68px)) scale(0.75)'
-        setTimeout(() => badge.remove(), 450)
-      }, 1000)
+      requestAnimationFrame(() => {
+        badge.style.transition = 'all 0.42s cubic-bezier(0.175,0.885,0.32,1.45)'
+        badge.style.transform = 'translate(-50%,calc(-50% - 46px)) scale(1)'
+        badge.style.opacity = '1'
+        setTimeout(() => {
+          badge.style.transition = 'all 0.5s ease'
+          badge.style.opacity = '0'
+          badge.style.transform = 'translate(-50%,calc(-50% - 72px)) scale(0.7)'
+          setTimeout(() => badge.remove(), 500)
+        }, 1050)
+      })
     })
   }
 

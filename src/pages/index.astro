@@ -2249,9 +2249,9 @@ import '../styles/global.css';
     const proj = getProject(projectId)
     const st = proj.subtasks.find(s => s.id === subtaskId)
     const task = st.tasks.find(t => t.id === taskId)
-    const wasUndone = !task.done
+    const wasDone = task.done
     task.done = inp.checked
-    if (task.done && wasUndone) {
+    if (task.done && !wasDone) {
       const g = gam()
       const log = todayLog()
       g.coins += 10
@@ -2266,6 +2266,14 @@ import '../styles/global.css';
         log.q5 = true
         setTimeout(() => { g.coins += 50; log.earned += 50; save(); showQuestBanner('Закрыть 5 тасков', 50); updateGamUI() }, 600)
       }
+      save()
+      updateGamUI()
+    } else if (!task.done && wasDone) {
+      const g = gam()
+      const log = todayLog()
+      g.coins = Math.max(0, g.coins - 10)
+      log.earned = Math.max(0, (log.earned || 0) - 10)
+      log.tasks = Math.max(0, (log.tasks || 0) - 1)
       save()
       updateGamUI()
     }

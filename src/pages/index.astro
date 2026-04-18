@@ -41,6 +41,11 @@ import '../styles/global.css';
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
         </svg>
       </button>
+      <button id="btn-coins"
+        class="hidden items-center gap-1.5 text-xs text-white/50 hover:text-white/80 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5"
+        data-action="open-gam-panel">
+        🪙 <span id="header-coin-count">0</span>
+      </button>
       <span id="header-user-email" class="hidden text-xs text-white/30 max-w-[160px] truncate"></span>
       <button id="btn-new-project"
         class="hidden text-xs bg-blue-600 hover:bg-blue-500 transition-colors px-3 py-1.5 rounded-md font-medium">
@@ -54,6 +59,10 @@ import '../styles/global.css';
   </header>
 
   <main id="app"></main>
+
+  <!-- Gamification panel -->
+  <div id="gam-overlay" class="hidden fixed inset-0 z-44" style="background:rgba(0,0,0,0.3)"></div>
+  <div id="gam-panel" class="fixed right-0 top-12 h-[calc(100vh-3rem)] w-80 bg-[#1e2328] border-l border-white/8 z-45 translate-x-full transition-transform duration-300 overflow-y-auto"></div>
 
   <div id="modal-overlay" class="hidden fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-16 px-4">
     <div class="bg-[#282e33] rounded-xl shadow-2xl w-full max-w-md relative">
@@ -769,23 +778,183 @@ import '../styles/global.css';
     return { done, total, pct: Math.round(done / total * 100) }
   }
 
+  // ─── GAMIFICATION ────────────────────────────────────────────────────────────
+  function gam() {
+    if (!appData.gamification) appData.gamification = { coins: 0, coinLog: [], rewards: [] }
+    return appData.gamification
+  }
+
+  function todayKey() {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  }
+
+  function todayLog() {
+    const g = gam()
+    let entry = g.coinLog.find(e => e.date === todayKey())
+    if (!entry) { entry = { date: todayKey(), earned: 0, tasks: 0, q3: false, q5: false }; g.coinLog.push(entry) }
+    return entry
+  }
+
+  function showCoinToast(amount, label = '') {
+    const toast = document.createElement('div')
+    toast.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:9999;background:#162013;border:1px solid #22c55e50;color:#86efac;padding:8px 14px;border-radius:12px;font-size:13px;font-weight:600;opacity:0;transform:translateY(10px);transition:all 0.25s ease;pointer-events:none;display:flex;align-items:center;gap:6px;white-space:nowrap'
+    toast.innerHTML = `<span style="font-size:16px">🪙</span> +${amount}${label ? `<span style="font-weight:400;opacity:0.7;margin-left:2px">${label}</span>` : ''}`
+    document.body.appendChild(toast)
+    requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)' })
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-8px)'; setTimeout(() => toast.remove(), 300) }, 2200)
+  }
+
+  function updateGamUI() {
+    const coinEl = document.getElementById('header-coin-count')
+    if (coinEl) coinEl.textContent = gam().coins
+    const panel = document.getElementById('gam-panel')
+    if (panel && !panel.classList.contains('translate-x-full')) renderGamPanelContent()
+  }
+
+  function renderQuestHTML(label, current, target, done, bonus) {
+    const pct = Math.min(100, Math.round(current / target * 100))
+    const color = done ? '#22c55e' : '#3b82f6'
+    return `<div class="bg-white/3 rounded-lg p-3 ${done ? 'opacity-60' : ''}">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-xs text-white/70">${label}</span>
+        <span class="text-xs text-yellow-400/80 font-medium">+${bonus} 🪙</span>
+      </div>
+      <div class="h-1.5 bg-white/8 rounded-full overflow-hidden mb-1">
+        <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-white/30">${current}/${target}</span>
+        ${done ? '<span class="text-xs text-green-400">✓ Выполнено</span>' : ''}
+      </div>
+    </div>`
+  }
+
+  function renderGamPanelContent() {
+    const panel = document.getElementById('gam-panel')
+    if (!panel) return
+    const g = gam()
+    const log = todayLog()
+    const today = log.tasks || 0
+    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+
+    const rewardsHTML = g.rewards.length ? g.rewards.map(r => {
+      const canBuy = g.coins >= r.cost
+      return `<div class="flex items-center gap-2 py-2.5 border-b border-white/5">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm text-white/80 truncate">${esc(r.title)}</div>
+          <div class="text-xs text-yellow-400/70">${r.cost} 🪙</div>
+        </div>
+        <button data-action="buy-reward" data-reward-id="${r.id}"
+          class="text-xs px-2.5 py-1 rounded-lg font-medium transition-all flex-shrink-0 ${canBuy ? 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30 cursor-pointer' : 'bg-white/5 text-white/20 cursor-not-allowed'}"
+          ${canBuy ? '' : 'disabled'}>Купить</button>
+        <button data-action="delete-reward" data-reward-id="${r.id}"
+          class="text-white/15 hover:text-red-400 transition-colors text-xs px-1 flex-shrink-0">✕</button>
+      </div>`
+    }).join('') : `<p class="text-white/25 text-sm text-center py-4">Добавь награды чтобы тратить монеты</p>`
+
+    const last7 = [...g.coinLog].reverse().slice(0, 7)
+    const historyHTML = last7.length ? last7.map(e => {
+      const d = new Date(e.date + 'T00:00:00')
+      const label = e.date === todayKey() ? 'Сегодня' : `${d.getDate()} ${months[d.getMonth()]}`
+      return `<div class="flex items-center justify-between py-1.5">
+        <span class="text-xs text-white/40">${label}</span>
+        <span class="text-xs font-mono text-yellow-400/70">+${e.earned} 🪙</span>
+      </div>`
+    }).join('') : `<p class="text-white/25 text-xs text-center py-2">Пока нет истории</p>`
+
+    panel.innerHTML = `<div class="p-4">
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-3">
+          <span class="text-3xl">🪙</span>
+          <div>
+            <div class="text-2xl font-bold leading-tight">${g.coins}</div>
+            <div class="text-xs text-white/35">монет</div>
+          </div>
+        </div>
+        <button data-action="close-gam-panel" class="text-white/30 hover:text-white/70 transition-colors text-lg leading-none">✕</button>
+      </div>
+
+      <div class="bg-white/4 rounded-xl p-3 mb-4">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-semibold text-white/50 uppercase tracking-wider">Сегодня</span>
+          <span class="text-xs text-yellow-400/80 font-medium">+${log.earned || 0} 🪙</span>
+        </div>
+        <div class="text-xs text-white/40">${today} ${today === 1 ? 'таск' : today >= 2 && today <= 4 ? 'таска' : 'тасков'} закрыто</div>
+      </div>
+
+      <div class="mb-5">
+        <div class="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2.5">Ежедневные квесты</div>
+        <div class="flex flex-col gap-2">
+          ${renderQuestHTML('Закрыть 3 таска', today, 3, log.q3, 25)}
+          ${renderQuestHTML('Закрыть 5 тасков', today, 5, log.q5, 50)}
+        </div>
+      </div>
+
+      <div class="mb-5">
+        <div class="flex items-center justify-between mb-2.5">
+          <span class="text-xs font-semibold text-white/40 uppercase tracking-wider">Магазин наград</span>
+          <button data-action="show-add-reward" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">+ Добавить</button>
+        </div>
+        <div id="rewards-list">${rewardsHTML}</div>
+        <div id="add-reward-form" class="hidden mt-3 flex flex-col gap-2">
+          <input id="reward-title-input" type="text" placeholder="Название награды..."
+            class="w-full bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
+          <div class="flex gap-2">
+            <input id="reward-cost-input" type="number" placeholder="Цена (монет)" min="1"
+              class="flex-1 bg-[#1d2125] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
+            <button data-action="confirm-add-reward"
+              class="bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg px-3 py-2 text-sm font-medium flex-shrink-0">OK</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">История (7 дней)</div>
+        ${historyHTML}
+      </div>
+    </div>`
+  }
+
+  function openGamPanel() {
+    const panel = document.getElementById('gam-panel')
+    const overlay = document.getElementById('gam-overlay')
+    if (!panel) return
+    renderGamPanelContent()
+    panel.classList.remove('translate-x-full')
+    overlay.classList.remove('hidden')
+  }
+
+  function closeGamPanel() {
+    const panel = document.getElementById('gam-panel')
+    const overlay = document.getElementById('gam-overlay')
+    if (!panel) return
+    panel.classList.add('translate-x-full')
+    overlay.classList.add('hidden')
+  }
+
   // ─── AUTH UI ─────────────────────────────────────────────────────────────────
   function showHeaderAuth(session) {
     const emailEl = document.getElementById('header-user-email')
     const logoutBtn = document.getElementById('btn-logout')
     const historyBtn = document.getElementById('btn-history')
     const backupBtn = document.getElementById('btn-backup')
+    const coinsBtn = document.getElementById('btn-coins')
     if (session) {
       emailEl.textContent = session.user.email
       emailEl.classList.remove('hidden')
       logoutBtn.classList.remove('hidden')
       historyBtn?.classList.remove('hidden')
       backupBtn?.classList.remove('hidden')
+      coinsBtn?.classList.remove('hidden')
+      coinsBtn?.classList.add('flex')
     } else {
       emailEl.classList.add('hidden')
       logoutBtn.classList.add('hidden')
       historyBtn?.classList.add('hidden')
       backupBtn?.classList.add('hidden')
+      coinsBtn?.classList.add('hidden')
+      coinsBtn?.classList.remove('flex')
     }
   }
 
@@ -979,7 +1148,6 @@ import '../styles/global.css';
       return
     }
 
-    const counts = {}
     const statuses = boardStatuses()
     const counts = {}
     for (const s of statuses) counts[s.id] = projects().filter(p => (p.status || statuses[0].id) === s.id).length
@@ -1648,13 +1816,39 @@ import '../styles/global.css';
       const newBoard = { id: uid(), name, emoji, projects: [] }
       appData.boards.push(newBoard)
       appData.activeBoardId = newBoard.id
-      save(); closeModal(); homeTab = newBoard.statuses[0].id; homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
+      save(); closeModal(); homeTab = smartDefaultTab(); homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
     if (a === 'nav-home') { go(''); return }
     if (a === 'download-backup') { await downloadBackup(); return }
     if (a === 'snooze-backup') {
       localStorage.setItem(BACKUP_KEY, (Date.now() - 6 * 24 * 60 * 60 * 1000).toString())
       document.getElementById('backup-banner')?.remove(); return
+    }
+    if (a === 'open-gam-panel') { openGamPanel(); return }
+    if (a === 'close-gam-panel') { closeGamPanel(); return }
+    if (a === 'buy-reward') {
+      const g = gam()
+      const r = g.rewards.find(r => r.id === el.dataset.rewardId)
+      if (!r || g.coins < r.cost) return
+      g.coins -= r.cost
+      r.bought = (r.bought || 0) + 1
+      save(); updateGamUI(); renderGamPanelContent(); return
+    }
+    if (a === 'show-add-reward') {
+      const form = document.getElementById('add-reward-form')
+      if (form) { form.classList.toggle('hidden'); if (!form.classList.contains('hidden')) document.getElementById('reward-title-input')?.focus() }
+      return
+    }
+    if (a === 'confirm-add-reward') {
+      const title = document.getElementById('reward-title-input')?.value.trim()
+      const cost = parseInt(document.getElementById('reward-cost-input')?.value)
+      if (!title || !cost || cost < 1) return
+      gam().rewards.push({ id: uid(), title, cost, bought: 0 })
+      save(); renderGamPanelContent(); return
+    }
+    if (a === 'delete-reward') {
+      gam().rewards = gam().rewards.filter(r => r.id !== el.dataset.rewardId)
+      save(); renderGamPanelContent(); return
     }
     if (a === 'go-history') { go('history'); return }
     if (a === 'open-tracked-task') {
@@ -1990,10 +2184,30 @@ import '../styles/global.css';
     const proj = getProject(projectId)
     const st = proj.subtasks.find(s => s.id === subtaskId)
     const task = st.tasks.find(t => t.id === taskId)
+    const wasUndone = !task.done
     task.done = inp.checked
+    if (task.done && wasUndone) {
+      const g = gam()
+      const log = todayLog()
+      g.coins += 10
+      log.earned = (log.earned || 0) + 10
+      log.tasks = (log.tasks || 0) + 1
+      showCoinToast(10)
+      if (log.tasks === 3 && !log.q3) {
+        log.q3 = true
+        setTimeout(() => { g.coins += 25; log.earned += 25; save(); showCoinToast(25, '🎯 Квест: 3 таска'); updateGamUI() }, 500)
+      }
+      if (log.tasks === 5 && !log.q5) {
+        log.q5 = true
+        setTimeout(() => { g.coins += 50; log.earned += 50; save(); showCoinToast(50, '🎯 Квест: 5 тасков'); updateGamUI() }, 1000)
+      }
+      save()
+      updateGamUI()
+    }
     saveProject(); rerenderProject()
   })
 
+  document.getElementById('gam-overlay').addEventListener('click', closeGamPanel)
   document.getElementById('btn-home').addEventListener('click', () => go(''))
   document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal)
   document.getElementById('btn-history').addEventListener('click', () => go('history'))
@@ -2057,6 +2271,7 @@ import '../styles/global.css';
       showHeaderAuth(session)
       await loadFromDB()
       restoreTimerFromData()
+      updateGamUI()
       route()
       window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
     } else {
@@ -2070,6 +2285,7 @@ import '../styles/global.css';
         showHeaderAuth(session)
         await loadFromDB()
         restoreTimerFromData()
+        updateGamUI()
         route()
         window.addEventListener('hashchange', () => { route(); if (currentProjectId) initDragDrop() })
       } else if (event === 'SIGNED_OUT') {

@@ -1046,7 +1046,7 @@ import '../styles/global.css';
     }
   }
 
-  function renderAuth(msg = '') {
+  function renderAuth() {
     document.getElementById('header-breadcrumb').classList.add('hidden')
     document.getElementById('btn-new-project').classList.add('hidden')
     showHeaderAuth(null)
@@ -1060,96 +1060,62 @@ import '../styles/global.css';
             <p class="text-white/40 text-sm">Войди чтобы начать</p>
           </div>
           <div class="bg-[#282e33] rounded-2xl p-6 shadow-xl">
-            ${msg ? `<div id="auth-msg" class="text-sm text-center mb-4 px-3 py-2 rounded-lg bg-blue-500/15 text-blue-300">${msg}</div>` : ''}
-            <div id="auth-step-email">
-              <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Email</label>
-              <input id="auth-email" type="email" placeholder="you@example.com"
-                class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 mb-4"/>
-              <button id="auth-send-btn"
-                class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-xl py-3 text-sm font-semibold">
-                Получить ссылку для входа
-              </button>
-            </div>
-            <div id="auth-step-otp" class="hidden">
-              <p class="text-sm text-white/60 text-center mb-4">Введи код из письма</p>
-              <input id="auth-otp" type="text" placeholder="123456" maxlength="6"
-                class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-4 py-3 text-sm text-center tracking-[0.4em] focus:outline-none focus:border-blue-500 mb-4"/>
-              <button id="auth-verify-btn"
-                class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-xl py-3 text-sm font-semibold">
-                Войти
-              </button>
-              <button id="auth-back-btn"
-                class="w-full mt-2 text-white/30 hover:text-white/60 text-sm py-2 transition-colors">
-                ← Изменить email
-              </button>
-            </div>
+            <div id="auth-msg" class="hidden text-sm text-center mb-4 px-3 py-2 rounded-lg"></div>
+            <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Email</label>
+            <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email"
+              class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 mb-3"/>
+            <label class="block text-xs text-white/40 mb-1.5 font-medium uppercase tracking-wider">Пароль</label>
+            <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"
+              class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 mb-4"/>
+            <button id="auth-signin-btn"
+              class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-xl py-3 text-sm font-semibold mb-2">
+              Войти
+            </button>
+            <button id="auth-signup-btn"
+              class="w-full text-white/35 hover:text-white/60 transition-colors py-2 text-sm">
+              Нет аккаунта? Создать
+            </button>
           </div>
         </div>
       </div>`
 
-    let sentEmail = ''
-
-    document.getElementById('auth-send-btn').addEventListener('click', async () => {
-      const email = document.getElementById('auth-email').value.trim()
-      if (!email) { document.getElementById('auth-email').focus(); return }
-      const btn = document.getElementById('auth-send-btn')
-      btn.textContent = 'Отправляем...'
-      btn.disabled = true
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
-      if (error) {
-        btn.textContent = 'Получить ссылку для входа'
-        btn.disabled = false
-        showAuthMsg('Ошибка: ' + error.message)
-        return
-      }
-      sentEmail = email
-      document.getElementById('auth-step-email').classList.add('hidden')
-      document.getElementById('auth-step-otp').classList.remove('hidden')
-      showAuthMsg(`Код отправлен на ${email}`)
-      document.getElementById('auth-otp').focus()
-    })
-
-    document.getElementById('auth-email').addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('auth-send-btn').click()
-    })
-
-    document.getElementById('auth-verify-btn').addEventListener('click', async () => {
-      const token = document.getElementById('auth-otp').value.trim()
-      if (!token) { document.getElementById('auth-otp').focus(); return }
-      const btn = document.getElementById('auth-verify-btn')
-      btn.textContent = 'Проверяем...'
-      btn.disabled = true
-      const { error } = await sb.auth.verifyOtp({ email: sentEmail, token, type: 'email' })
-      if (error) {
-        btn.textContent = 'Войти'
-        btn.disabled = false
-        showAuthMsg('Неверный код. Попробуй ещё раз.')
-      }
-      // onAuthStateChange will fire and take over
-    })
-
-    document.getElementById('auth-otp').addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('auth-verify-btn').click()
-    })
-
-    document.getElementById('auth-back-btn').addEventListener('click', () => {
-      document.getElementById('auth-step-otp').classList.add('hidden')
-      document.getElementById('auth-step-email').classList.remove('hidden')
-    })
-  }
-
-  function showAuthMsg(text) {
-    let el = document.getElementById('auth-msg')
-    if (!el) {
-      el = document.createElement('div')
-      el.id = 'auth-msg'
-      el.className = 'text-sm text-center mb-4 px-3 py-2 rounded-lg bg-blue-500/15 text-blue-300'
-      const step = document.getElementById('auth-step-otp').classList.contains('hidden')
-        ? document.getElementById('auth-step-email')
-        : document.getElementById('auth-step-otp')
-      step.parentElement.insertBefore(el, step)
+    const showMsg = (text, isError = true) => {
+      const el = document.getElementById('auth-msg')
+      el.textContent = text
+      el.className = `text-sm text-center mb-4 px-3 py-2 rounded-lg ${isError ? 'bg-red-500/15 text-red-300' : 'bg-blue-500/15 text-blue-300'}`
+      el.classList.remove('hidden')
     }
-    el.textContent = text
+
+    const getFields = () => ({
+      email: document.getElementById('auth-email').value.trim(),
+      password: document.getElementById('auth-password').value
+    })
+
+    document.getElementById('auth-signin-btn').addEventListener('click', async () => {
+      const { email, password } = getFields()
+      if (!email || !password) { showMsg('Введи email и пароль'); return }
+      const btn = document.getElementById('auth-signin-btn')
+      btn.textContent = 'Входим...'; btn.disabled = true
+      const { error } = await sb.auth.signInWithPassword({ email, password })
+      btn.textContent = 'Войти'; btn.disabled = false
+      if (error) showMsg(error.message === 'Invalid login credentials' ? 'Неверный email или пароль' : error.message)
+    })
+
+    document.getElementById('auth-signup-btn').addEventListener('click', async () => {
+      const { email, password } = getFields()
+      if (!email || !password) { showMsg('Введи email и пароль'); return }
+      if (password.length < 6) { showMsg('Пароль минимум 6 символов'); return }
+      const btn = document.getElementById('auth-signup-btn')
+      btn.textContent = 'Создаём...'; btn.disabled = true
+      const { error } = await sb.auth.signUp({ email, password })
+      btn.textContent = 'Нет аккаунта? Создать'; btn.disabled = false
+      if (error) { showMsg(error.message); return }
+      showMsg('Аккаунт создан — теперь войди', false)
+    })
+
+    const onEnter = e => { if (e.key === 'Enter') document.getElementById('auth-signin-btn').click() }
+    document.getElementById('auth-email').addEventListener('keydown', onEnter)
+    document.getElementById('auth-password').addEventListener('keydown', onEnter)
   }
 
   // ─── ROUTING ─────────────────────────────────────────────────────────────────

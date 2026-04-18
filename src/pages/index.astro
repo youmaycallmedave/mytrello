@@ -256,6 +256,9 @@ import '../styles/global.css';
       delete appData.projects
     }
     if (!appData.activeBoardId) appData.activeBoardId = appData.boards[0]?.id
+    // one-time rename: Работа → Work
+    const workBoard = appData.boards?.find(b => b.id === 'work' && b.name === 'Работа')
+    if (workBoard) { workBoard.name = 'Work'; workBoard.emoji = '💼' }
     // one-time reset: clear test coins
     if (appData.gamification && !appData.gamification.resetV1) {
       appData.gamification.coins = 0

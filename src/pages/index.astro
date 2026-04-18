@@ -78,9 +78,7 @@ import '../styles/global.css';
     { id: 'archived',   label: 'Архив',           color: '#22c55e' },
     { id: 'todo',       label: 'Нужно сделать',   color: '#6b7280' },
   ]
-  const COLOR_PALETTE = ['#6b7280','#3b82f6','#22c55e','#eab308','#f97316','#ef4444','#a855f7','#ec4899','#14b8a6','#f43f5e']
-
-  function boardStatuses() { return currentBoard()?.statuses || DEFAULT_STATUSES }
+  function boardStatuses() { return DEFAULT_STATUSES }
   function statusById(id) { return boardStatuses().find(s => s.id === id) || boardStatuses()[0] }
   function smartDefaultTab() {
     const sts = boardStatuses()
@@ -248,9 +246,6 @@ import '../styles/global.css';
       delete appData.projects
     }
     if (!appData.activeBoardId) appData.activeBoardId = appData.boards[0]?.id
-    for (const b of appData.boards) {
-      if (!b.statuses) b.statuses = DEFAULT_STATUSES.map(s => ({ ...s }))
-    }
   }
 
   function getProject(id) {
@@ -1003,9 +998,6 @@ import '../styles/global.css';
               ${esc(s.label)}
               ${counts[s.id] ? `<span class="text-xs" style="opacity:0.6">${counts[s.id]}</span>` : ''}
             </button>`).join('')}
-          <button data-action="manage-statuses"
-            class="flex items-center px-2 py-1.5 rounded-lg text-xs text-white/25 hover:text-white/60 hover:bg-white/5 transition-all"
-            title="Управление колонками">⚙</button>
         </div>
         <input id="home-search" type="search" placeholder="Поиск..." value="${esc(homeSearch)}"
           class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500/60 placeholder-white/25 text-white/80 w-44"/>
@@ -1561,40 +1553,6 @@ import '../styles/global.css';
     document.getElementById('modal-body').innerHTML = ''
   }
 
-  function showManageStatusesModal() {
-    const sts = boardStatuses()
-    openModal(`
-      <div class="p-5">
-        <h2 class="text-base font-bold mb-1">Колонки доски</h2>
-        <p class="text-xs text-white/35 mb-4">Переименуй, измени цвет или порядок</p>
-        <div id="statuses-list" class="flex flex-col gap-2 mb-4">
-          ${sts.map((s, i) => `
-            <div class="flex items-center gap-2" data-status-row="${s.id}">
-              <button data-action="status-cycle-color" data-status-id="${s.id}"
-                class="w-6 h-6 rounded-full flex-shrink-0 border-2 border-white/20 hover:border-white/50 transition-colors cursor-pointer"
-                style="background:${s.color}" title="Сменить цвет"></button>
-              <input type="text" value="${esc(s.label)}" data-status-name="${s.id}"
-                class="flex-1 bg-[#1d2125] border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 text-white/80"/>
-              <button data-action="status-move-up" data-status-id="${s.id}"
-                class="text-white/25 hover:text-white/70 transition-colors px-1 text-sm ${i === 0 ? 'opacity-20 pointer-events-none' : ''}">↑</button>
-              <button data-action="status-move-down" data-status-id="${s.id}"
-                class="text-white/25 hover:text-white/70 transition-colors px-1 text-sm ${i === sts.length - 1 ? 'opacity-20 pointer-events-none' : ''}">↓</button>
-              <button data-action="status-delete" data-status-id="${s.id}"
-                class="text-white/20 hover:text-red-400 transition-colors px-1 text-sm ${sts.length <= 1 ? 'opacity-20 pointer-events-none' : ''}"
-                title="Удалить">✕</button>
-            </div>`).join('')}
-        </div>
-        <button data-action="status-add"
-          class="w-full text-sm text-white/40 hover:text-white/70 border border-dashed border-white/15 hover:border-white/30 rounded-lg py-2 transition-colors mb-3">
-          + Добавить колонку
-        </button>
-        <button data-action="save-statuses"
-          class="w-full bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg py-2.5 text-sm font-semibold">
-          Готово
-        </button>
-      </div>`)
-  }
-
   function showNewProjectModal() {
     openModal(`
       <div class="p-5">
@@ -1661,46 +1619,6 @@ import '../styles/global.css';
       if (appData.activeBoardId === boardId) appData.activeBoardId = appData.boards[0]?.id
       save(); homeTab = smartDefaultTab(); homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
-    if (a === 'manage-statuses') { showManageStatusesModal(); return }
-    if (a === 'status-cycle-color') {
-      const sid = el.dataset.statusId
-      const st = currentBoard().statuses.find(s => s.id === sid)
-      if (!st) return
-      const idx = COLOR_PALETTE.indexOf(st.color)
-      st.color = COLOR_PALETTE[(idx + 1) % COLOR_PALETTE.length]
-      save(); showManageStatusesModal(); return
-    }
-    if (a === 'status-move-up' || a === 'status-move-down') {
-      const sts = currentBoard().statuses
-      const idx = sts.findIndex(s => s.id === el.dataset.statusId)
-      const to = a === 'status-move-up' ? idx - 1 : idx + 1
-      if (to < 0 || to >= sts.length) return
-      const [item] = sts.splice(idx, 1); sts.splice(to, 0, item)
-      save(); showManageStatusesModal(); return
-    }
-    if (a === 'status-delete') {
-      const sts = currentBoard().statuses
-      if (sts.length <= 1) return
-      const sid = el.dataset.statusId
-      const fallback = sts.find(s => s.id !== sid)?.id
-      for (const p of projects()) { if (p.status === sid) p.status = fallback }
-      currentBoard().statuses = sts.filter(s => s.id !== sid)
-      if (homeTab === sid) homeTab = fallback
-      save(); showManageStatusesModal(); return
-    }
-    if (a === 'status-add') {
-      const color = COLOR_PALETTE[currentBoard().statuses.length % COLOR_PALETTE.length]
-      currentBoard().statuses.push({ id: uid(), label: 'Новая колонка', color })
-      save(); showManageStatusesModal(); return
-    }
-    if (a === 'save-statuses') {
-      document.querySelectorAll('[data-status-name]').forEach(inp => {
-        const sid = inp.dataset.statusName
-        const st = currentBoard().statuses.find(s => s.id === sid)
-        if (st && inp.value.trim()) st.label = inp.value.trim()
-      })
-      save(); closeModal(); renderHome(); return
-    }
     if (a === 'switch-board') {
       appData.activeBoardId = el.dataset.boardId
       save(); homeTab = smartDefaultTab(); homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
@@ -1727,7 +1645,7 @@ import '../styles/global.css';
       const name = document.getElementById('new-board-name').value.trim()
       if (!name) { document.getElementById('new-board-name').focus(); return }
       const emoji = document.getElementById('new-board-emoji').value.trim() || '📁'
-      const newBoard = { id: uid(), name, emoji, projects: [], statuses: DEFAULT_STATUSES.map(s => ({ ...s })) }
+      const newBoard = { id: uid(), name, emoji, projects: [] }
       appData.boards.push(newBoard)
       appData.activeBoardId = newBoard.id
       save(); closeModal(); homeTab = newBoard.statuses[0].id; homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return

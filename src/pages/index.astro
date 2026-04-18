@@ -1602,11 +1602,11 @@ import '../styles/global.css';
       if (!confirm(msg)) return
       appData.boards = appData.boards.filter(b => b.id !== boardId)
       if (appData.activeBoardId === boardId) appData.activeBoardId = appData.boards[0]?.id
-      save(); homeTab = 'inprogress'; homeSearch = ''; go(''); return
+      save(); homeTab = 'inprogress'; homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
     if (a === 'switch-board') {
       appData.activeBoardId = el.dataset.boardId
-      save(); homeTab = 'inprogress'; homeSearch = ''; go(''); return
+      save(); homeTab = 'inprogress'; homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
     if (a === 'new-board') {
       openModal(`
@@ -1633,7 +1633,7 @@ import '../styles/global.css';
       const newBoard = { id: uid(), name, emoji, projects: [] }
       appData.boards.push(newBoard)
       appData.activeBoardId = newBoard.id
-      save(); closeModal(); homeTab = 'inprogress'; homeSearch = ''; go(''); return
+      save(); closeModal(); homeTab = 'inprogress'; homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
     if (a === 'nav-home') { go(''); return }
     if (a === 'download-backup') { await downloadBackup(); return }

@@ -796,18 +796,83 @@ import '../styles/global.css';
     return entry
   }
 
-  function showCoinToast(amount, label = '') {
-    const toast = document.createElement('div')
-    toast.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:9999;background:#162013;border:1px solid #22c55e50;color:#86efac;padding:8px 14px;border-radius:12px;font-size:13px;font-weight:600;opacity:0;transform:translateY(10px);transition:all 0.25s ease;pointer-events:none;display:flex;align-items:center;gap:6px;white-space:nowrap'
-    toast.innerHTML = `<span style="font-size:16px">🪙</span> +${amount}${label ? `<span style="font-weight:400;opacity:0.7;margin-left:2px">${label}</span>` : ''}`
-    document.body.appendChild(toast)
-    requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)' })
-    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-8px)'; setTimeout(() => toast.remove(), 300) }, 2200)
+  function showCoinBurst(sourceEl, amount) {
+    const rect = sourceEl.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => {
+        const coin = document.createElement('div')
+        const angle = -Math.PI / 2 + (i - 2.5) * 0.45 + (Math.random() - 0.5) * 0.3
+        const dist = 48 + Math.random() * 32
+        const dx = Math.cos(angle) * dist
+        const dy = Math.sin(angle) * dist
+        coin.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;z-index:9999;font-size:17px;pointer-events:none;transform:translate(-50%,-50%) scale(0);opacity:1;transition:none`
+        coin.textContent = '🪙'
+        document.body.appendChild(coin)
+        requestAnimationFrame(() => {
+          coin.style.transition = 'all 0.6s cubic-bezier(0.2,0.8,0.3,1)'
+          coin.style.transform = `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(1.1)`
+          setTimeout(() => {
+            coin.style.transition = 'all 0.3s ease'
+            coin.style.opacity = '0'
+            coin.style.transform = `translate(calc(-50% + ${dx}px),calc(-50% + ${dy - 14}px)) scale(0.4)`
+            setTimeout(() => coin.remove(), 300)
+          }, 440)
+        })
+      }, i * 35)
+    }
+    const badge = document.createElement('div')
+    badge.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;z-index:9999;color:#86efac;font-size:15px;font-weight:800;pointer-events:none;transform:translate(-50%,-50%) scale(0);opacity:0;text-shadow:0 0 12px #22c55e90;transition:none;white-space:nowrap`
+    badge.textContent = `+${amount} 🪙`
+    document.body.appendChild(badge)
+    requestAnimationFrame(() => {
+      badge.style.transition = 'all 0.4s cubic-bezier(0.175,0.885,0.32,1.4)'
+      badge.style.transform = 'translate(-50%,calc(-50% - 44px)) scale(1)'
+      badge.style.opacity = '1'
+      setTimeout(() => {
+        badge.style.transition = 'all 0.45s ease'
+        badge.style.opacity = '0'
+        badge.style.transform = 'translate(-50%,calc(-50% - 68px)) scale(0.75)'
+        setTimeout(() => badge.remove(), 450)
+      }, 1000)
+    })
+  }
+
+  function showQuestBanner(title, bonus) {
+    const el = document.createElement('div')
+    el.style.cssText = 'position:fixed;top:50%;left:50%;z-index:9999;text-align:center;pointer-events:none;transform:translate(-50%,-50%) scale(0.6);opacity:0;transition:none'
+    el.innerHTML = `<div style="background:linear-gradient(135deg,#1a2520,#1e2d20);border:1.5px solid #22c55e55;border-radius:24px;padding:30px 44px;box-shadow:0 0 80px #22c55e15,0 24px 64px rgba(0,0,0,0.55)">
+      <div style="font-size:42px;margin-bottom:10px">🎯</div>
+      <div style="font-size:15px;font-weight:700;color:#86efac;margin-bottom:5px">Квест выполнен!</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:16px">${title}</div>
+      <div style="font-size:30px;font-weight:800;color:#fbbf24;letter-spacing:-0.5px">+${bonus} 🪙</div>
+    </div>`
+    document.body.appendChild(el)
+    requestAnimationFrame(() => {
+      el.style.transition = 'all 0.5s cubic-bezier(0.175,0.885,0.32,1.275)'
+      el.style.transform = 'translate(-50%,-50%) scale(1)'
+      el.style.opacity = '1'
+      setTimeout(() => {
+        el.style.transition = 'all 0.4s ease'
+        el.style.transform = 'translate(-50%,-56%) scale(0.88)'
+        el.style.opacity = '0'
+        setTimeout(() => el.remove(), 400)
+      }, 2300)
+    })
   }
 
   function updateGamUI() {
     const coinEl = document.getElementById('header-coin-count')
-    if (coinEl) coinEl.textContent = gam().coins
+    const btn = document.getElementById('btn-coins')
+    if (coinEl) {
+      coinEl.textContent = gam().coins
+      if (btn) {
+        btn.style.transition = 'transform 0.12s ease'
+        btn.style.transform = 'scale(1.4)'
+        setTimeout(() => { btn.style.transform = 'scale(1)' }, 140)
+      }
+    }
     const panel = document.getElementById('gam-panel')
     if (panel && !panel.classList.contains('translate-x-full')) renderGamPanelContent()
   }
@@ -2192,14 +2257,14 @@ import '../styles/global.css';
       g.coins += 10
       log.earned = (log.earned || 0) + 10
       log.tasks = (log.tasks || 0) + 1
-      showCoinToast(10)
+      showCoinBurst(inp.closest('[data-drag-task]') || inp, 10)
       if (log.tasks === 3 && !log.q3) {
         log.q3 = true
-        setTimeout(() => { g.coins += 25; log.earned += 25; save(); showCoinToast(25, '🎯 Квест: 3 таска'); updateGamUI() }, 500)
+        setTimeout(() => { g.coins += 25; log.earned += 25; save(); showQuestBanner('Закрыть 3 таска', 25); updateGamUI() }, 600)
       }
       if (log.tasks === 5 && !log.q5) {
         log.q5 = true
-        setTimeout(() => { g.coins += 50; log.earned += 50; save(); showCoinToast(50, '🎯 Квест: 5 тасков'); updateGamUI() }, 1000)
+        setTimeout(() => { g.coins += 50; log.earned += 50; save(); showQuestBanner('Закрыть 5 тасков', 50); updateGamUI() }, 600)
       }
       save()
       updateGamUI()

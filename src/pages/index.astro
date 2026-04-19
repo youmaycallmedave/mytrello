@@ -32,7 +32,7 @@ import '../styles/global.css';
     <div class="ml-auto flex items-center gap-2 flex-shrink-0">
       <button id="btn-design-gym"
         class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
-        Design Gym
+        Дизайн
       </button>
       <button id="btn-journal"
         class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
@@ -795,7 +795,8 @@ import '../styles/global.css';
       const content = entry?.content || ''
       const sport = entry?.sport || false
       const steps = entry?.steps || ''
-      rows.push({ d, dateKey, dow, isToday, isWeekend, content, sport, steps })
+      const designDone = (designGymData().days[dateKey] || []).length
+      rows.push({ d, dateKey, dow, isToday, isWeekend, content, sport, steps, designDone })
     }
 
     const sportIcon = (active) => active
@@ -825,7 +826,7 @@ import '../styles/global.css';
               </tr>
             </thead>
             <tbody>
-              ${rows.map(({ d, dateKey, dow, isToday, isWeekend, content, sport, steps }) => `
+              ${rows.map(({ d, dateKey, dow, isToday, isWeekend, content, sport, steps, designDone }) => `
                 <tr class="border-b border-white/[0.04] group/row ${isToday ? 'bg-blue-500/8' : isWeekend ? 'bg-white/[0.015]' : ''}"
                     data-journal-row="${dateKey}">
                   <td class="px-4 py-0 align-middle">
@@ -835,12 +836,15 @@ import '../styles/global.css';
                     <span class="text-xs ${isWeekend ? 'text-white/25' : 'text-white/30'}">${DAY_NAMES[dow]}</span>
                   </td>
                   <td class="px-3 py-1.5 align-middle">
-                    <div
-                      contenteditable="true"
-                      data-journal-cell="${dateKey}"
-                      class="text-sm outline-none min-h-[28px] py-1 leading-relaxed ${isToday ? 'text-white/80' : 'text-white/55'} empty:before:content-[attr(data-placeholder)] empty:before:text-white/15 empty:before:pointer-events-none focus:before:hidden"
-                      data-placeholder="${isToday ? 'What did you do today?' : ''}"
-                    >${esc(content)}</div>
+                    <div class="flex items-center gap-2">
+                      <div
+                        contenteditable="true"
+                        data-journal-cell="${dateKey}"
+                        class="flex-1 text-sm outline-none min-h-[28px] py-1 leading-relaxed ${isToday ? 'text-white/80' : 'text-white/55'} empty:before:content-[attr(data-placeholder)] empty:before:text-white/15 empty:before:pointer-events-none focus:before:hidden"
+                        data-placeholder="${isToday ? 'What did you do today?' : ''}"
+                      >${esc(content)}</div>
+                      ${designDone > 0 ? `<span class="flex-shrink-0 text-[10px] text-purple-400/70 bg-purple-400/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">🎨 ${designDone}</span>` : ''}
+                    </div>
                   </td>
                   <td class="px-2 py-0 align-middle text-center">
                     <button data-sport-toggle="${dateKey}" class="inline-flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/5 transition-colors">
@@ -1023,28 +1027,47 @@ import '../styles/global.css';
   ]
 
   function designGymData() {
-    if (!appData.designGym) appData.designGym = { completed: [] }
+    if (!appData.designGym) appData.designGym = { days: {} }
+    // migrate old format { completed: ['date',...] } → { days: { date: [] } }
+    if (appData.designGym.completed && !appData.designGym.days) {
+      appData.designGym.days = {}
+      for (const date of appData.designGym.completed) appData.designGym.days[date] = []
+      delete appData.designGym.completed
+    }
+    if (!appData.designGym.days) appData.designGym.days = {}
     return appData.designGym
   }
 
-  function todayTaskIndex() {
-    const dayIndex = Math.floor(Date.now() / 86400000)
-    return dayIndex % DESIGN_TASKS.length
+  function getDailyTasks() {
+    const d = Math.floor(Date.now() / 86400000)
+    const cats = ['🔍', '✏️', '🛠️', '🎬']
+    const skipCat = cats[d % cats.length]
+    const picked = []
+    for (const cat of cats) {
+      if (cat === skipCat) continue
+      const pool = DESIGN_TASKS.map((t, i) => ({ t, i })).filter(({ t }) => t.cat === cat)
+      const { t, i } = pool[d % pool.length]
+      picked.push({ task: t, idx: i })
+    }
+    return picked
   }
 
-  function calcStreak() {
+  function designCalcStreak() {
     const data = designGymData()
-    const completed = new Set(data.completed)
     let streak = 0
-    const d = new Date()
-    d.setHours(0,0,0,0)
+    const d = new Date(); d.setHours(0,0,0,0)
     while (true) {
       const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-      if (!completed.has(key)) break
+      if (!(key in data.days)) break
       streak++
       d.setDate(d.getDate() - 1)
     }
     return streak
+  }
+
+  function designTotalDone() {
+    const data = designGymData()
+    return Object.values(data.days).reduce((s, arr) => s + (arr.length || 1), 0)
   }
 
   function renderDesignGym() {
@@ -1052,11 +1075,10 @@ import '../styles/global.css';
     document.getElementById('btn-new-project').classList.add('hidden')
     const app = document.getElementById('app')
     const data = designGymData()
-    const completed = new Set(data.completed)
     const today = todayKey()
-    const todayDone = completed.has(today)
-    const streak = calcStreak()
-    const task = DESIGN_TASKS[todayTaskIndex()]
+    const todayDone = data.days[today] || []
+    const streak = designCalcStreak()
+    const dailyTasks = getDailyTasks()
 
     const catColors = {
       '🔍': 'text-purple-400 bg-purple-400/10',
@@ -1069,61 +1091,63 @@ import '../styles/global.css';
     for (let i = 13; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
       const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-      const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
-      last14.push({ key, day: d.getDate(), dow: dayNames[d.getDay()], done: completed.has(key), isToday: key === today })
+      const DAY_NAMES = ['вс','пн','вт','ср','чт','пт','сб']
+      const cnt = key in data.days ? (data.days[key].length || 1) : 0
+      last14.push({ key, day: d.getDate(), dow: DAY_NAMES[d.getDay()], cnt, isToday: key === today })
     }
 
     app.innerHTML = `
       <div class="p-5 max-w-2xl mx-auto">
         <div class="flex items-center gap-3 mb-6">
-          <h1 class="text-lg font-bold text-white/70 flex-1">Design Gym</h1>
-          ${streak > 0 ? `<div class="flex items-center gap-1.5 text-sm font-semibold text-orange-400">
-            <span>🔥</span><span>${streak}</span>
-          </div>` : ''}
-          <span class="text-xs text-white/25">${data.completed.length} выполнено всего</span>
+          <h1 class="text-lg font-bold text-white/70 flex-1">Дизайн</h1>
+          ${streak > 0 ? `<div class="flex items-center gap-1.5 text-sm font-semibold text-orange-400"><span>🔥</span><span>${streak}</span></div>` : ''}
+          <span class="text-xs text-white/25">${designTotalDone()} выполнено всего</span>
         </div>
 
-        <div class="bg-[#282e33] rounded-2xl p-5 mb-4 ${todayDone ? 'opacity-70' : ''}">
-          <div class="flex items-center gap-2 mb-4">
-            <span class="text-xs font-medium px-2.5 py-1 rounded-full ${catColors[task.cat] || 'text-white/40 bg-white/5'}">
-              ${task.cat} ${task.label}
-            </span>
-            <span class="text-xs text-white/25 ml-auto">Задание дня</span>
-          </div>
-          <h2 class="text-base font-semibold text-white/90 mb-2 leading-snug">${esc(task.title)}</h2>
-          <p class="text-sm text-white/50 leading-relaxed mb-5">${esc(task.desc)}</p>
-          <button id="btn-gym-done"
-            class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all
-              ${todayDone
-                ? 'bg-green-500/15 text-green-400 cursor-default'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'}">
-            ${todayDone ? '✓ Выполнено сегодня' : 'Отметить как выполнено'}
-          </button>
+        <div class="flex flex-col gap-3 mb-4">
+          ${dailyTasks.map(({ task, idx }) => {
+            const done = todayDone.includes(idx)
+            return `<div class="bg-[#282e33] rounded-2xl p-5 ${done ? 'opacity-60' : ''}">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-xs font-medium px-2.5 py-1 rounded-full ${catColors[task.cat] || 'text-white/40 bg-white/5'}">${task.cat} ${task.label}</span>
+              </div>
+              <h2 class="text-sm font-semibold text-white/90 mb-1.5 leading-snug">${esc(task.title)}</h2>
+              <p class="text-sm text-white/45 leading-relaxed mb-4">${esc(task.desc)}</p>
+              <button data-gym-task="${idx}"
+                class="w-full py-2 rounded-xl text-sm font-semibold transition-all
+                  ${done ? 'bg-green-500/15 text-green-400 cursor-default' : 'bg-white/6 hover:bg-white/10 text-white/70'}">
+                ${done ? '✓ Выполнено' : 'Отметить как выполнено'}
+              </button>
+            </div>`
+          }).join('')}
         </div>
 
         <div class="bg-[#282e33] rounded-2xl p-4">
           <div class="text-xs text-white/25 font-medium mb-3">Последние 14 дней</div>
           <div class="flex gap-1.5">
-            ${last14.map(({ key, day, dow, done, isToday }) => `
+            ${last14.map(({ day, dow, cnt, isToday }) => `
               <div class="flex flex-col items-center gap-1 flex-1">
                 <div class="text-[10px] text-white/20">${dow}</div>
                 <div class="w-full aspect-square rounded-md flex items-center justify-center text-[11px] font-medium transition-all
-                  ${done ? 'bg-green-500/25 text-green-400' : isToday ? 'bg-white/8 text-white/60 ring-1 ring-white/20' : 'bg-white/4 text-white/20'}">
-                  ${done ? '✓' : day}
+                  ${cnt > 0 ? 'bg-green-500/25 text-green-400' : isToday ? 'bg-white/8 text-white/60 ring-1 ring-white/20' : 'bg-white/4 text-white/20'}">
+                  ${cnt > 0 ? cnt : day}
                 </div>
               </div>`).join('')}
           </div>
         </div>
       </div>`
 
-    if (!todayDone) {
-      document.getElementById('btn-gym-done').addEventListener('click', () => {
+    app.querySelectorAll('[data-gym-task]').forEach(btn => {
+      const idx = parseInt(btn.dataset.gymTask)
+      if ((data.days[today] || []).includes(idx)) return
+      btn.addEventListener('click', () => {
         const data = designGymData()
-        if (!data.completed.includes(today)) data.completed.push(today)
+        if (!data.days[today]) data.days[today] = []
+        if (!data.days[today].includes(idx)) data.days[today].push(idx)
         save()
         renderDesignGym()
       })
-    }
+    })
   }
 
 

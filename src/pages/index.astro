@@ -814,11 +814,11 @@ import '../styles/global.css';
           <table class="w-full border-collapse">
             <thead>
               <tr class="border-b border-white/5">
-                <th class="text-left text-xs text-white/25 font-medium px-4 py-2.5 w-10">д</th>
-                <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-10">день</th>
-                <th class="text-center text-xs text-white/25 font-medium px-2 py-2.5 w-14" title="Спорт">🏃</th>
-                <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-24">шаги</th>
-                <th class="text-left text-xs text-white/25 font-medium px-3 py-2.5">заметка</th>
+                <th class="text-left text-xs text-white/25 font-medium px-4 py-2.5 w-10">day</th>
+                <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-10">week</th>
+                <th class="text-left text-xs text-white/25 font-medium px-3 py-2.5">note</th>
+                <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-24">steps</th>
+                <th class="text-center text-xs text-white/25 font-medium px-2 py-2.5 w-20">activity</th>
               </tr>
             </thead>
             <tbody>
@@ -831,10 +831,13 @@ import '../styles/global.css';
                   <td class="px-2 py-0 align-middle">
                     <span class="text-xs ${isWeekend ? 'text-white/25' : 'text-white/30'}">${DAY_NAMES[dow]}</span>
                   </td>
-                  <td class="px-2 py-0 align-middle text-center">
-                    <button data-sport-toggle="${dateKey}" class="inline-flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/5 transition-colors">
-                      ${sportIcon(sport)}
-                    </button>
+                  <td class="px-3 py-1.5 align-middle">
+                    <div
+                      contenteditable="true"
+                      data-journal-cell="${dateKey}"
+                      class="text-sm outline-none min-h-[28px] py-1 leading-relaxed ${isToday ? 'text-white/80' : 'text-white/55'} empty:before:content-[attr(data-placeholder)] empty:before:text-white/15 empty:before:pointer-events-none focus:before:hidden"
+                      data-placeholder="${isToday ? 'What did you do today?' : ''}"
+                    >${esc(content)}</div>
                   </td>
                   <td class="px-2 py-1 align-middle">
                     <input
@@ -845,13 +848,10 @@ import '../styles/global.css';
                       class="w-full bg-transparent text-sm tabular-nums text-white/50 placeholder-white/15 outline-none focus:text-white/80 text-right pr-1"
                     />
                   </td>
-                  <td class="px-3 py-1.5 align-middle">
-                    <div
-                      contenteditable="true"
-                      data-journal-cell="${dateKey}"
-                      class="text-sm outline-none min-h-[28px] py-1 leading-relaxed ${isToday ? 'text-white/80' : 'text-white/55'} empty:before:content-[attr(data-placeholder)] empty:before:text-white/15 empty:before:pointer-events-none focus:before:hidden"
-                      data-placeholder="${isToday ? 'Что сделал сегодня?' : ''}"
-                    >${esc(content)}</div>
+                  <td class="px-2 py-0 align-middle text-center">
+                    <button data-sport-toggle="${dateKey}" class="inline-flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/5 transition-colors">
+                      ${sportIcon(sport)}
+                    </button>
                   </td>
                 </tr>`).join('')}
             </tbody>

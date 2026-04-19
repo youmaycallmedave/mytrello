@@ -817,7 +817,6 @@ import '../styles/global.css';
                 <th class="text-left text-xs text-white/25 font-medium px-4 py-2.5 w-10">day</th>
                 <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-10">week</th>
                 <th class="text-left text-xs text-white/25 font-medium px-3 py-2.5">note</th>
-                <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-24">steps</th>
                 <th class="text-center text-xs text-white/25 font-medium px-2 py-2.5 w-20">activity</th>
               </tr>
             </thead>
@@ -838,15 +837,6 @@ import '../styles/global.css';
                       class="text-sm outline-none min-h-[28px] py-1 leading-relaxed ${isToday ? 'text-white/80' : 'text-white/55'} empty:before:content-[attr(data-placeholder)] empty:before:text-white/15 empty:before:pointer-events-none focus:before:hidden"
                       data-placeholder="${isToday ? 'What did you do today?' : ''}"
                     >${esc(content)}</div>
-                  </td>
-                  <td class="px-2 py-1 align-middle">
-                    <input
-                      type="text" inputmode="numeric" pattern="[0-9]*"
-                      data-steps-cell="${dateKey}"
-                      value="${esc(String(steps))}"
-                      placeholder="—"
-                      class="w-full bg-transparent text-sm tabular-nums text-white/50 placeholder-white/15 outline-none focus:text-white/80 text-right pr-1"
-                    />
                   </td>
                   <td class="px-2 py-0 align-middle text-center">
                     <button data-sport-toggle="${dateKey}" class="inline-flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/5 transition-colors">

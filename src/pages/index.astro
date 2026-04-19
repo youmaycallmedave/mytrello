@@ -275,6 +275,12 @@ import '../styles/global.css';
       appData.gamification.coinLog = []
       appData.gamification.resetV1 = true
     }
+    // one-time reset: clear design gym progress + coins (fresh start with toggle)
+    if (!appData._resetV2) {
+      if (appData.gamification) { appData.gamification.coins = 0; appData.gamification.coinLog = [] }
+      appData.designGym = { days: {}, doneIdx: [] }
+      appData._resetV2 = true
+    }
   }
 
   function getProject(id) {
@@ -1138,7 +1144,7 @@ import '../styles/global.css';
               ${t.tip ? `<div class="mb-4 text-xs text-amber-400/75 bg-amber-400/8 border border-amber-400/15 rounded-xl px-3 py-2.5 leading-relaxed">💡 ${esc(t.tip)}</div>` : ''}
               <button data-gym-task="${i}"
                 class="w-full py-2 rounded-xl text-sm font-semibold transition-all
-                  ${doneToday ? 'bg-green-500/15 text-green-400 cursor-default' : 'bg-white/6 hover:bg-white/10 text-white/70'}">
+                  ${doneToday ? 'bg-green-500/15 hover:bg-red-500/12 text-green-400 hover:text-red-400' : 'bg-white/6 hover:bg-white/10 text-white/70'}">
                 ${doneToday ? '✓ Выполнено' : 'Отметить как выполнено'}
               </button>
             </div>`
@@ -1162,14 +1168,21 @@ import '../styles/global.css';
 
     app.querySelectorAll('[data-gym-task]').forEach(btn => {
       const idx = parseInt(btn.dataset.gymTask)
-      if ((data.days[today] || []).includes(idx)) return
       btn.addEventListener('click', () => {
         const data = designGymData()
         if (!data.days[today]) data.days[today] = []
-        if (!data.days[today].includes(idx)) data.days[today].push(idx)
-        if (!data.doneIdx.includes(idx)) data.doneIdx.push(idx)
+        const alreadyDone = data.days[today].includes(idx)
         const g = gam(); const log = todayLog()
-        g.coins += 1; log.earned = (log.earned || 0) + 1
+        if (alreadyDone) {
+          data.days[today] = data.days[today].filter(i => i !== idx)
+          data.doneIdx = data.doneIdx.filter(i => i !== idx)
+          g.coins = Math.max(0, (g.coins || 0) - 1)
+          log.earned = Math.max(0, (log.earned || 0) - 1)
+        } else {
+          data.days[today].push(idx)
+          if (!data.doneIdx.includes(idx)) data.doneIdx.push(idx)
+          g.coins += 1; log.earned = (log.earned || 0) + 1
+        }
         save(); updateGamUI()
         renderDesignGym()
       })

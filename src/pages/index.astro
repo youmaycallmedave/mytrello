@@ -116,6 +116,8 @@ import '../styles/global.css';
   let timerInterval = null
   let pendingScrollTaskId = null
   let savedSelection = null
+  let journalYear = new Date().getFullYear()
+  let journalMonth = new Date().getMonth() // 0-based
 
   // ─── UTILS ───────────────────────────────────────────────────────────────────
   function uid() {
@@ -763,77 +765,125 @@ import '../styles/global.css';
     return appData.journal
   }
 
-  function fmtJournalDate(dateKey) {
-    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
-    const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
-    const [y, m, dd] = dateKey.split('-').map(Number)
-    const d = new Date(y, m-1, dd)
-    const today = todayKey()
-    const ystd = new Date(); ystd.setDate(ystd.getDate()-1)
-    const ystdKey = `${ystd.getFullYear()}-${String(ystd.getMonth()+1).padStart(2,'0')}-${String(ystd.getDate()).padStart(2,'0')}`
-    if (dateKey === today) return 'Сегодня'
-    if (dateKey === ystdKey) return 'Вчера'
-    return `${dayNames[d.getDay()]}, ${dd} ${months[m-1]} ${y}`
+  function journalDateKey(y, m, d) {
+    return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
   }
 
   function renderJournal() {
     document.getElementById('header-breadcrumb').classList.add('hidden')
     document.getElementById('btn-new-project').classList.add('hidden')
     const app = document.getElementById('app')
+
+    const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
+    const DAY_NAMES = ['вс','пн','вт','ср','чт','пт','сб']
     const today = todayKey()
+    const daysInMonth = new Date(journalYear, journalMonth + 1, 0).getDate()
     const entries = journalEntries()
-    const todayEntry = entries.find(e => e.date === today)
-    const past = [...entries].filter(e => e.date !== today).sort((a, b) => b.date.localeCompare(a.date))
+    const entryMap = new Map(entries.map(e => [e.date, e]))
+
+    const rows = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = journalDateKey(journalYear, journalMonth, d)
+      const dow = new Date(journalYear, journalMonth, d).getDay()
+      const isToday = dateKey === today
+      const isWeekend = dow === 0 || dow === 6
+      const entry = entryMap.get(dateKey)
+      const content = entry?.content || ''
+      rows.push({ d, dateKey, dow, isToday, isWeekend, content })
+    }
 
     app.innerHTML = `
-      <div class="p-5 max-w-2xl mx-auto">
-        <div class="flex items-center gap-3 mb-6">
-          <h1 class="text-lg font-bold text-white/70 flex-1">Дневник</h1>
-          <span class="text-xs text-white/25">${fmtJournalDate(today)}</span>
+      <div class="p-5 max-w-3xl mx-auto">
+        <div class="flex items-center gap-3 mb-5">
+          <h1 class="text-lg font-bold text-white/70">Дневник</h1>
+          <div class="flex items-center gap-1 ml-4">
+            <button id="journal-prev" class="text-white/30 hover:text-white/70 transition-colors px-2 py-1 rounded-md hover:bg-white/5 text-sm">‹</button>
+            <span class="text-sm font-medium text-white/60 min-w-[130px] text-center">${MONTHS[journalMonth]} ${journalYear}</span>
+            <button id="journal-next" class="text-white/30 hover:text-white/70 transition-colors px-2 py-1 rounded-md hover:bg-white/5 text-sm">›</button>
+          </div>
+          <span id="journal-saved" class="ml-auto text-xs text-white/20 transition-opacity opacity-0">Сохранено</span>
         </div>
 
-        <div class="bg-[#282e33] rounded-2xl p-4 mb-8">
-          <div class="text-xs text-white/30 font-medium uppercase tracking-wider mb-3">Что сделал сегодня?</div>
-          <textarea id="journal-today"
-            class="w-full bg-transparent text-sm text-white/80 placeholder-white/20 resize-none focus:outline-none min-h-[100px]"
-            placeholder="Запиши что угодно — задачи, мысли, события дня..."
-          >${todayEntry ? todayEntry.content : ''}</textarea>
-          <div class="flex justify-end mt-2">
-            <span id="journal-saved" class="text-xs text-white/20 transition-opacity opacity-0">Сохранено</span>
-          </div>
+        <div class="bg-[#282e33] rounded-2xl overflow-hidden">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="border-b border-white/5">
+                <th class="text-left text-xs text-white/25 font-medium px-4 py-2.5 w-10">д</th>
+                <th class="text-left text-xs text-white/25 font-medium px-3 py-2.5 w-10">день</th>
+                <th class="text-left text-xs text-white/25 font-medium px-3 py-2.5">заметка</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(({ d, dateKey, dow, isToday, isWeekend, content }) => `
+                <tr class="border-b border-white/[0.04] group/row ${isToday ? 'bg-blue-500/8' : isWeekend ? 'bg-white/[0.015]' : ''}"
+                    data-journal-row="${dateKey}">
+                  <td class="px-4 py-0 align-middle">
+                    <span class="text-sm tabular-nums ${isToday ? 'text-blue-400 font-semibold' : isWeekend ? 'text-white/35' : 'text-white/45'}">${d}</span>
+                  </td>
+                  <td class="px-3 py-0 align-middle">
+                    <span class="text-xs ${isWeekend ? 'text-white/25' : 'text-white/30'}">${DAY_NAMES[dow]}</span>
+                  </td>
+                  <td class="px-3 py-1.5 align-middle">
+                    <div
+                      contenteditable="true"
+                      data-journal-cell="${dateKey}"
+                      class="text-sm outline-none min-h-[28px] py-1 leading-relaxed ${isToday ? 'text-white/80' : 'text-white/55'} empty:before:content-[attr(data-placeholder)] empty:before:text-white/15 empty:before:pointer-events-none focus:before:hidden"
+                      data-placeholder="${isToday ? 'Что сделал сегодня?' : ''}"
+                    >${esc(content)}</div>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
         </div>
-
-        ${past.length ? `
-          <div class="text-xs text-white/25 font-medium uppercase tracking-wider mb-4">Прошлые записи</div>
-          <div class="flex flex-col gap-3" id="journal-past">
-            ${past.map(e => `
-              <div class="bg-[#282e33] rounded-xl p-4" data-journal-date="${e.date}">
-                <div class="text-xs text-white/35 font-medium mb-2">${fmtJournalDate(e.date)}</div>
-                <div class="text-sm text-white/60 whitespace-pre-wrap leading-relaxed">${esc(e.content)}</div>
-              </div>`).join('')}
-          </div>
-        ` : `
-          <div class="text-center py-8 text-white/20 text-sm">Прошлых записей пока нет</div>
-        `}
       </div>`
 
-    let jSaveTimer = null
-    const textarea = document.getElementById('journal-today')
-    const savedEl = document.getElementById('journal-saved')
-    textarea.addEventListener('input', () => {
-      clearTimeout(jSaveTimer)
-      savedEl.style.opacity = '0'
-      jSaveTimer = setTimeout(() => {
-        const content = textarea.value
-        const entries = journalEntries()
-        const idx = entries.findIndex(e => e.date === today)
-        if (idx >= 0) entries[idx].content = content
-        else entries.push({ id: uid(), date: today, content, createdAt: Date.now() })
-        save()
-        savedEl.style.opacity = '1'
-        setTimeout(() => { savedEl.style.opacity = '0' }, 1800)
-      }, 800)
+    document.getElementById('journal-prev').addEventListener('click', () => {
+      journalMonth--
+      if (journalMonth < 0) { journalMonth = 11; journalYear-- }
+      renderJournal()
     })
+    document.getElementById('journal-next').addEventListener('click', () => {
+      journalMonth++
+      if (journalMonth > 11) { journalMonth = 0; journalYear++ }
+      renderJournal()
+    })
+
+    const savedEl = document.getElementById('journal-saved')
+    let jSaveTimer = null
+    app.querySelectorAll('[data-journal-cell]').forEach(cell => {
+      cell.addEventListener('input', () => {
+        clearTimeout(jSaveTimer)
+        savedEl.style.opacity = '0'
+        jSaveTimer = setTimeout(() => {
+          const dateKey = cell.dataset.journalCell
+          const content = cell.innerText.trim()
+          const entries = journalEntries()
+          const idx = entries.findIndex(e => e.date === dateKey)
+          if (content) {
+            if (idx >= 0) entries[idx].content = content
+            else entries.push({ id: uid(), date: dateKey, content, createdAt: Date.now() })
+          } else if (idx >= 0) {
+            entries.splice(idx, 1)
+          }
+          save()
+          savedEl.style.opacity = '1'
+          setTimeout(() => { savedEl.style.opacity = '0' }, 1800)
+        }, 600)
+      })
+      cell.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          const row = cell.closest('tr')
+          const next = row?.nextElementSibling?.querySelector('[data-journal-cell]')
+          if (next) next.focus()
+        }
+      })
+    })
+
+    if (today.startsWith(`${journalYear}-${String(journalMonth+1).padStart(2,'0')}`)) {
+      const todayCell = app.querySelector(`[data-journal-cell="${today}"]`)
+      if (todayCell) todayCell.focus()
+    }
   }
 
 

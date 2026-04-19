@@ -877,10 +877,10 @@ import '../styles/global.css';
         if (!log.qJournal) {
           log.qJournal = true
           const g = gam()
-          g.coins += 10
-          log.earned = (log.earned || 0) + 10
+          g.coins += 1
+          log.earned = (log.earned || 0) + 1
           save()
-          setTimeout(() => { showQuestBanner('Заполнить дневник', 10); updateGamUI() }, 400)
+          setTimeout(() => { showQuestBanner('Заполнить дневник', 1); updateGamUI() }, 400)
         }
       }
     }
@@ -1162,7 +1162,7 @@ import '../styles/global.css';
         <div class="flex flex-col gap-2">
           ${renderQuestHTML('Закрыть 3 таска', today, 3, log.q3, 25)}
           ${renderQuestHTML('Закрыть 5 тасков', today, 5, log.q5, 50)}
-          ${renderQuestHTML('Заполнить дневник', log.qJournal ? 1 : 0, 1, log.qJournal, 10)}
+          ${renderQuestHTML('Заполнить дневник', log.qJournal ? 1 : 0, 1, log.qJournal, 1)}
         </div>
       </div>
 

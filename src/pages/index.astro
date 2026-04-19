@@ -789,8 +789,14 @@ import '../styles/global.css';
       const isWeekend = dow === 0 || dow === 6
       const entry = entryMap.get(dateKey)
       const content = entry?.content || ''
-      rows.push({ d, dateKey, dow, isToday, isWeekend, content })
+      const sport = entry?.sport || false
+      const steps = entry?.steps || ''
+      rows.push({ d, dateKey, dow, isToday, isWeekend, content, sport, steps })
     }
+
+    const sportIcon = (active) => active
+      ? `<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`
+      : `<span class="w-4 h-4 rounded-full border border-white/15 inline-block"></span>`
 
     app.innerHTML = `
       <div class="p-5 max-w-3xl mx-auto">
@@ -809,19 +815,35 @@ import '../styles/global.css';
             <thead>
               <tr class="border-b border-white/5">
                 <th class="text-left text-xs text-white/25 font-medium px-4 py-2.5 w-10">д</th>
-                <th class="text-left text-xs text-white/25 font-medium px-3 py-2.5 w-10">день</th>
+                <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-10">день</th>
+                <th class="text-center text-xs text-white/25 font-medium px-2 py-2.5 w-14" title="Спорт">🏃</th>
+                <th class="text-left text-xs text-white/25 font-medium px-2 py-2.5 w-24">шаги</th>
                 <th class="text-left text-xs text-white/25 font-medium px-3 py-2.5">заметка</th>
               </tr>
             </thead>
             <tbody>
-              ${rows.map(({ d, dateKey, dow, isToday, isWeekend, content }) => `
+              ${rows.map(({ d, dateKey, dow, isToday, isWeekend, content, sport, steps }) => `
                 <tr class="border-b border-white/[0.04] group/row ${isToday ? 'bg-blue-500/8' : isWeekend ? 'bg-white/[0.015]' : ''}"
                     data-journal-row="${dateKey}">
                   <td class="px-4 py-0 align-middle">
                     <span class="text-sm tabular-nums ${isToday ? 'text-blue-400 font-semibold' : isWeekend ? 'text-white/35' : 'text-white/45'}">${d}</span>
                   </td>
-                  <td class="px-3 py-0 align-middle">
+                  <td class="px-2 py-0 align-middle">
                     <span class="text-xs ${isWeekend ? 'text-white/25' : 'text-white/30'}">${DAY_NAMES[dow]}</span>
+                  </td>
+                  <td class="px-2 py-0 align-middle text-center">
+                    <button data-sport-toggle="${dateKey}" class="inline-flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/5 transition-colors">
+                      ${sportIcon(sport)}
+                    </button>
+                  </td>
+                  <td class="px-2 py-1 align-middle">
+                    <input
+                      type="text" inputmode="numeric" pattern="[0-9]*"
+                      data-steps-cell="${dateKey}"
+                      value="${esc(String(steps))}"
+                      placeholder="—"
+                      class="w-full bg-transparent text-sm tabular-nums text-white/50 placeholder-white/15 outline-none focus:text-white/80 text-right pr-1"
+                    />
                   </td>
                   <td class="px-3 py-1.5 align-middle">
                     <div
@@ -849,7 +871,43 @@ import '../styles/global.css';
     })
 
     const savedEl = document.getElementById('journal-saved')
+
+    function journalSaveField(dateKey, fields) {
+      const entries = journalEntries()
+      let idx = entries.findIndex(e => e.date === dateKey)
+      if (idx < 0) { entries.push({ id: uid(), date: dateKey, content: '', createdAt: Date.now() }); idx = entries.length - 1 }
+      Object.assign(entries[idx], fields)
+      const e = entries[idx]
+      if (!e.content && !e.sport && !e.steps) entries.splice(idx, 1)
+      save()
+      savedEl.style.opacity = '1'
+      setTimeout(() => { savedEl.style.opacity = '0' }, 1800)
+    }
+
+    app.querySelectorAll('[data-sport-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dateKey = btn.dataset.sportToggle
+        const entries = journalEntries()
+        const entry = entries.find(e => e.date === dateKey)
+        const newVal = !(entry?.sport || false)
+        journalSaveField(dateKey, { sport: newVal })
+        btn.innerHTML = sportIcon(newVal)
+      })
+    })
+
     let jSaveTimer = null
+    app.querySelectorAll('[data-steps-cell]').forEach(input => {
+      input.addEventListener('input', () => {
+        clearTimeout(jSaveTimer)
+        jSaveTimer = setTimeout(() => {
+          const dateKey = input.dataset.stepsCell
+          const steps = input.value.replace(/\D/g, '')
+          input.value = steps
+          journalSaveField(dateKey, { steps })
+        }, 600)
+      })
+    })
+
     app.querySelectorAll('[data-journal-cell]').forEach(cell => {
       cell.addEventListener('input', () => {
         clearTimeout(jSaveTimer)
@@ -857,17 +915,7 @@ import '../styles/global.css';
         jSaveTimer = setTimeout(() => {
           const dateKey = cell.dataset.journalCell
           const content = cell.innerText.trim()
-          const entries = journalEntries()
-          const idx = entries.findIndex(e => e.date === dateKey)
-          if (content) {
-            if (idx >= 0) entries[idx].content = content
-            else entries.push({ id: uid(), date: dateKey, content, createdAt: Date.now() })
-          } else if (idx >= 0) {
-            entries.splice(idx, 1)
-          }
-          save()
-          savedEl.style.opacity = '1'
-          setTimeout(() => { savedEl.style.opacity = '0' }, 1800)
+          journalSaveField(dateKey, { content })
         }, 600)
       })
       cell.addEventListener('keydown', e => {

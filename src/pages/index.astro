@@ -872,6 +872,17 @@ import '../styles/global.css';
       save()
       savedEl.style.opacity = '1'
       setTimeout(() => { savedEl.style.opacity = '0' }, 1800)
+      if (dateKey === today && fields.content && fields.content.trim()) {
+        const log = todayLog()
+        if (!log.qJournal) {
+          log.qJournal = true
+          const g = gam()
+          g.coins += 10
+          log.earned = (log.earned || 0) + 10
+          save()
+          setTimeout(() => { showQuestBanner('Заполнить дневник', 10); updateGamUI() }, 400)
+        }
+      }
     }
 
     app.querySelectorAll('[data-sport-toggle]').forEach(btn => {
@@ -973,7 +984,8 @@ import '../styles/global.css';
   function todayLog() {
     const g = gam()
     let entry = g.coinLog.find(e => e.date === todayKey())
-    if (!entry) { entry = { date: todayKey(), earned: 0, tasks: 0, q3: false, q5: false }; g.coinLog.push(entry) }
+    if (!entry) { entry = { date: todayKey(), earned: 0, tasks: 0, q3: false, q5: false, qJournal: false }; g.coinLog.push(entry) }
+    if (entry.qJournal === undefined) entry.qJournal = false
     return entry
   }
 
@@ -1150,6 +1162,7 @@ import '../styles/global.css';
         <div class="flex flex-col gap-2">
           ${renderQuestHTML('Закрыть 3 таска', today, 3, log.q3, 25)}
           ${renderQuestHTML('Закрыть 5 тасков', today, 5, log.q5, 50)}
+          ${renderQuestHTML('Заполнить дневник', log.qJournal ? 1 : 0, 1, log.qJournal, 10)}
         </div>
       </div>
 

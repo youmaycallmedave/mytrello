@@ -30,6 +30,10 @@ import '../styles/global.css';
       <button id="btn-stop-timer" class="text-red-400/70 hover:text-red-300 transition-colors leading-none ml-0.5">⏹</button>
     </div>
     <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+      <button id="btn-design-gym"
+        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
+        Design Gym
+      </button>
       <button id="btn-journal"
         class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
         Дневник
@@ -936,6 +940,193 @@ import '../styles/global.css';
   }
 
 
+  // ─── DESIGN GYM ──────────────────────────────────────────────────────────────
+  const DESIGN_TASKS = [
+    // 🔍 Насмотренность
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди 3 лендинга с тёмной темой на Dribbble', desc: 'Открой dribbble.com, поищи "dark landing page". Запиши в заметки что конкретно понравилось — цвет, шрифт, отступы.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Разбери сайт недели на Awwwards', desc: 'Зайди на awwwards.com, открой сайт недели. Разбери: какие шрифты, цветовая палитра, как устроена сетка.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди 5 onboarding-экранов на Mobbin', desc: 'Зайди на mobbin.com, поищи onboarding. Что общего у 5 разных флоу? Как они встречают нового пользователя.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Изучи 3 hero-секции SaaS-сайтов', desc: 'Найди 3 любых SaaS (например Notion, Linear, Vercel). Разбери их hero: заголовок, подзаголовок, CTA, визуал.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Поищи "web design 2025" на Pinterest', desc: 'Сохрани 5 карточек которые зацепили. Попробуй объяснить себе — почему именно они.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди сайт с отличной типографикой', desc: 'Разбери: какие шрифты используются, какие размеры, межстрочный интервал. Попробуй повторить это сочетание.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Открой land-book.com, выбери 3 лендинга', desc: 'Запиши одну конкретную деталь из каждого которую хочешь использовать в своих проектах.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди сайт с необычной навигацией', desc: 'Как она работает? Hamburger, mega menu, sidebar, full-screen? Что делает её удобной или неудобной?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Изучи 3 pricing-страницы', desc: 'Посмотри как Notion, Figma или любой SaaS строит pricing. Как выделяют популярный тариф? Что общего?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди хороший пример пустого состояния (empty state)', desc: 'Empty state — экран когда данных нет. Найди 3 примера. Как они объясняют ситуацию и мотивируют действовать?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Разбери анимации на одном сайте', desc: 'Выбери любой сайт с анимациями (попробуй stripe.com или linear.app). Что анимируется, как, зачем?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди 3 примера хорошего мобильного дизайна', desc: 'Зайди на mobbin.com или pttrns.com. Что делает мобильный интерфейс удобным — найди конкретные приёмы.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Изучи цветовые палитры на Coolors', desc: 'Открой coolors.co/palettes/trending. Найди 3 палитры которые нравятся. Попробуй понять — почему они работают.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди сайт с хорошим использованием пространства', desc: 'Whitespace — воздух между элементами. Найди сайт где воздуха много и он работает. Что он передаёт?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Посмотри галерею на scrnshts.com', desc: 'Найди 3 скриншота которые зацепили. Попробуй скопировать один элемент (кнопку, карточку) в свой проект.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди 3 сайта стартапов с Product Hunt', desc: 'Зайди на producthunt.com, открой сайты 3 топовых продуктов недели. Оцени landing: что продаёт, что нет.' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Изучи footer на 5 сайтах', desc: 'Footer часто игнорируют, но он важен. Найди 5 разных footer-ов. Что в них есть? Как организована информация?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди пример отличного error page (404)', desc: 'Хорошие 404-страницы — маленькое искусство. Найди 3 примера. Что делает их запоминающимися?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Разбери иконографику на одном продукте', desc: 'Выбери любое приложение. Как используются иконки? Один стиль? Filled vs outline? Размеры? Цвета?' },
+    { cat: '🔍', label: 'Насмотренность', title: 'Найди 3 dashboard-дизайна', desc: 'Поищи "dashboard UI" на Dribbble. Как организована информация? Какие виджеты, графики, цвета?' },
+
+    // ✏️ Практика
+    { cat: '✏️', label: 'Практика', title: 'Сделай 3 варианта кнопки', desc: 'Только HTML+CSS или в Figma: минималистичная, градиентная, с иконкой. Одна кнопка — 3 разных характера.' },
+    { cat: '✏️', label: 'Практика', title: 'Сверстай hero-секцию', desc: 'Заголовок, подзаголовок, CTA-кнопка, простой визуал. Используй vibe coding — опиши и сгенери, потом доведи.' },
+    { cat: '✏️', label: 'Практика', title: 'Сделай карточку продукта', desc: 'Изображение, название, цена, кнопка "Купить". Добавь hover-эффект. Сделай так чтобы было приятно смотреть.' },
+    { cat: '✏️', label: 'Практика', title: 'Создай навигационный бар', desc: 'Лого слева, 4 пункта меню по центру или справа, кнопка CTA. Сделай адаптивной или хотя бы красивой на десктопе.' },
+    { cat: '✏️', label: 'Практика', title: 'Сверстай форму подписки', desc: 'Поле email + кнопка "Подписаться". Добавь состояния: обычное, фокус, успех. Сделай красивой и чистой.' },
+    { cat: '✏️', label: 'Практика', title: 'Создай секцию с 3 feature-карточками', desc: 'Иконка + заголовок + 2 строки текста. 3 карточки в ряд. Попробуй разные варианты: с бордером, без, с тенью.' },
+    { cat: '✏️', label: 'Практика', title: 'Сделай pricing-блок', desc: '3 тарифа: Basic, Pro, Enterprise. Выдели средний визуально. Добавь список фич и кнопки.' },
+    { cat: '✏️', label: 'Практика', title: 'Сверстай testimonial-карточку', desc: 'Аватар, имя, должность, цитата. Попробуй 2 варианта верстки — горизонтальный и вертикальный.' },
+    { cat: '✏️', label: 'Практика', title: 'Создай footer', desc: 'Лого, 3-4 колонки ссылок, копирайт внизу. Добавь иконки соцсетей. Тёмный и светлый вариант.' },
+    { cat: '✏️', label: 'Практика', title: 'Сделай notification/toast компонент', desc: '3 состояния: success (зелёный), error (красный), info (синий). Иконка + текст + кнопка закрыть.' },
+    { cat: '✏️', label: 'Практика', title: 'Создай аватар-группу', desc: '4-5 перекрывающихся круглых аватара + счётчик "+12". Такие используют в комментариях и командах.' },
+    { cat: '✏️', label: 'Практика', title: 'Сделай skeleton loader', desc: 'Анимированный placeholder пока грузится контент. Серые блоки с shimmer-эффектом вместо карточки.' },
+    { cat: '✏️', label: 'Практика', title: 'Создай badge/tag компонент', desc: '4 варианта: success, warning, error, neutral. Маленький, с закруглёнными углами. Используй в карточках.' },
+    { cat: '✏️', label: 'Практика', title: 'Сверстай profile card', desc: 'Аватар, имя, bio, кнопки Follow/Message, счётчики (посты, подписчики). Чистый и современный вид.' },
+    { cat: '✏️', label: 'Практика', title: 'Сделай stepper/шаги', desc: 'Горизонтальный индикатор прогресса с шагами: 1 → 2 → 3 → 4. Активный, завершённый, неактивный состояния.' },
+    { cat: '✏️', label: 'Практика', title: 'Создай search bar', desc: 'Поле поиска с иконкой, placeholder, состояние при фокусе, кнопка очистить. Сделай 2 варианта размера.' },
+    { cat: '✏️', label: 'Практика', title: 'Сверстай stats-секцию', desc: '4 числа с подписями: "12K users", "99% uptime", "$2M ARR", "4.9 rating". Крупные числа, мелкий текст.' },
+    { cat: '✏️', label: 'Практика', title: 'Сделай dark/light toggle', desc: 'Кнопка переключения темы. Анимированный toggle или кнопка с иконкой солнца/луны.' },
+    { cat: '✏️', label: 'Практика', title: 'Создай timeline/лента событий', desc: 'Вертикальная лента: точка на линии, дата, заголовок, описание. 4-5 событий. Используй в portfolio или changelog.' },
+    { cat: '✏️', label: 'Практика', title: 'Сверстай FAQ-аккордеон', desc: '5 вопросов которые раскрываются по клику. Анимация раскрытия, иконка + / −. Чистый минималистичный вид.' },
+
+    // 🛠️ Инструменты
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй v0.dev', desc: 'Зайди на v0.dev, опиши любой компонент одной фразой (например "dark pricing table with 3 tiers"). Посмотри результат, доработай.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Изучи shadcn/ui', desc: 'Открой ui.shadcn.com. Посмотри компоненты Card, Button, Badge. Скопируй один в свой проект или в CodePen.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй bolt.new', desc: 'Опиши простое приложение или компонент. Посмотри что генерируется. Потрогай код, измени цвет или текст.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Изучи Google Fonts Pairs', desc: 'Зайди на fonts.google.com. Найди хорошую пару шрифтов (заголовок + текст). Подключи их в любой проект.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Покопайся в uiverse.io', desc: 'Найди красивый CSS-компонент (кнопку, карточку, loader). Разбери код: как он сделан? Что можно взять?' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй Coolors генератор', desc: 'Зайди на coolors.co, нажми пробел для генерации. Найди палитру под тёмный SaaS. Экспортируй как CSS переменные.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Изучи heroicons или lucide.dev', desc: 'Открой lucide.dev, найди иконки для типичного SaaS: dashboard, settings, users, analytics. Вставь в компонент.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй Figma Auto Layout', desc: 'Создай карточку в Figma с Auto Layout. Измени текст — карточка должна растянуться автоматически.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Изучи TypeScale', desc: 'Зайди на typescale.com. Настрой шкалу для своего проекта: базовый размер, коэффициент. Скопируй CSS.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй Framer', desc: 'Зайди на framer.com. Создай простую страницу — добавь один анимированный блок. Посмотри как работает no-code анимация.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Изучи Tailwind Play', desc: 'Открой play.tailwindcss.com. Сверстай карточку используя только Tailwind классы. Попробуй dark: префикс.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй плагин Figma Unsplash', desc: 'Установи плагин Unsplash в Figma. Вставь 5 фото в любой макет. Как фото меняет ощущение от дизайна?' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Изучи CSS Box Shadow генератор', desc: 'Зайди на box-shadow.dev или neumorphism.io. Поиграй с тенями. Какая тень делает карточку живой, а не плоской?' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй Vercel v0 chat', desc: 'Зайди на v0.dev/chat. Попроси переработать уже существующий компонент — изменить стиль, добавить состояние.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Изучи gradient генераторы', desc: 'Открой mesh.gradient.style или gradienta.io. Создай красивый mesh gradient. Используй как background для hero.' },
+    { cat: '🛠️', label: 'Инструменты', title: 'Попробуй Relume', desc: 'Зайди на relume.io. Это библиотека Webflow/React компонентов. Посмотри секции, найди 3 которые хочешь использовать.' },
+
+    // 🎬 Обучение
+    { cat: '🎬', label: 'Обучение', title: 'Изучи правило 60-30-10 для цветов', desc: 'Основной цвет — 60%, дополнительный — 30%, акцент — 10%. Найди пример сайта который следует этому правилу. Примени к любому компоненту.' },
+    { cat: '🎬', label: 'Обучение', title: 'Разбери визуальную иерархию', desc: 'Как размер, цвет и вес шрифта направляют взгляд? Возьми любой сайт и отследи куда смотришь в первую, вторую, третью очередь.' },
+    { cat: '🎬', label: 'Обучение', title: 'Изучи Gestalt-принципы в UI', desc: 'Proximity, similarity, continuity, closure. Найди пример каждого принципа на реальном сайте. Как они делают интерфейс понятнее?' },
+    { cat: '🎬', label: 'Обучение', title: 'Посмотри разбор дизайна от DesignCourse', desc: 'Найди на YouTube канал DesignCourse, посмотри любой разбор сайта или UI. Запиши 3 конкретных приёма.' },
+    { cat: '🎬', label: 'Обучение', title: 'Изучи принципы хорошей типографики', desc: 'Прочитай про line-height, letter-spacing, размеры для заголовков vs текст. Настрой эти параметры в одном своём проекте.' },
+    { cat: '🎬', label: 'Обучение', title: 'Разбери концепцию Design Tokens', desc: 'Что такое design tokens? Как используются в Figma и коде? Посмотри как они устроены в Tailwind (tailwind.config).' },
+    { cat: '🎬', label: 'Обучение', title: 'Изучи 8pt grid систему', desc: 'Почему всё кратно 8? Margin, padding, размеры компонентов. Посмотри как это устроено в Figma. Попробуй применить в вёрстке.' },
+    { cat: '🎬', label: 'Обучение', title: 'Разбери разницу Padding vs Margin', desc: 'На 3 реальных примерах из любого сайта. Когда что использовать? Как это влияет на отступы внутри и снаружи.' },
+    { cat: '🎬', label: 'Обучение', title: 'Посмотри видео про micro-interactions', desc: 'Поищи на YouTube "micro-interactions UI design". Как маленькие анимации делают продукт живым? Найди 3 примера.' },
+    { cat: '🎬', label: 'Обучение', title: 'Изучи принципы доступного (accessible) дизайна', desc: 'Что такое color contrast ratio? Зайди на webaim.org/resources/contrastchecker. Проверь свои цвета.' },
+    { cat: '🎬', label: 'Обучение', title: 'Разбери как работает Flexbox визуально', desc: 'Зайди на flexboxfroggy.com, пройди хотя бы 15 уровней. Или открой css-tricks.com/snippets/css/a-guide-to-flexbox.' },
+    { cat: '🎬', label: 'Обучение', title: 'Изучи CSS Grid', desc: 'Зайди на cssgridgarden.com, пройди 10 уровней. Потом попробуй сверстать простую 3-колоночную сетку без Flexbox.' },
+    { cat: '🎬', label: 'Обучение', title: 'Разбери психологию цвета в UI', desc: 'Синий — доверие, красный — срочность, зелёный — успех. Найди 5 примеров где цвет используется намеренно.' },
+    { cat: '🎬', label: 'Обучение', title: 'Посмотри видео про atomic design', desc: 'Atoms → Molecules → Organisms → Templates → Pages. Поищи "atomic design tutorial". Как это применяется в компонентах?' },
+    { cat: '🎬', label: 'Обучение', title: 'Изучи принципы Motion Design для UI', desc: 'Easing, duration, delay. Почему ease-out лучше linear? Поищи "UI animation principles" и посмотри одно видео.' },
+  ]
+
+  function designGymData() {
+    if (!appData.designGym) appData.designGym = { completed: [] }
+    return appData.designGym
+  }
+
+  function todayTaskIndex() {
+    const dayIndex = Math.floor(Date.now() / 86400000)
+    return dayIndex % DESIGN_TASKS.length
+  }
+
+  function calcStreak() {
+    const data = designGymData()
+    const completed = new Set(data.completed)
+    let streak = 0
+    const d = new Date()
+    d.setHours(0,0,0,0)
+    while (true) {
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      if (!completed.has(key)) break
+      streak++
+      d.setDate(d.getDate() - 1)
+    }
+    return streak
+  }
+
+  function renderDesignGym() {
+    document.getElementById('header-breadcrumb').classList.add('hidden')
+    document.getElementById('btn-new-project').classList.add('hidden')
+    const app = document.getElementById('app')
+    const data = designGymData()
+    const completed = new Set(data.completed)
+    const today = todayKey()
+    const todayDone = completed.has(today)
+    const streak = calcStreak()
+    const task = DESIGN_TASKS[todayTaskIndex()]
+
+    const catColors = {
+      '🔍': 'text-purple-400 bg-purple-400/10',
+      '✏️': 'text-blue-400 bg-blue-400/10',
+      '🛠️': 'text-orange-400 bg-orange-400/10',
+      '🎬': 'text-green-400 bg-green-400/10',
+    }
+
+    const last14 = []
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
+      last14.push({ key, day: d.getDate(), dow: dayNames[d.getDay()], done: completed.has(key), isToday: key === today })
+    }
+
+    app.innerHTML = `
+      <div class="p-5 max-w-2xl mx-auto">
+        <div class="flex items-center gap-3 mb-6">
+          <h1 class="text-lg font-bold text-white/70 flex-1">Design Gym</h1>
+          ${streak > 0 ? `<div class="flex items-center gap-1.5 text-sm font-semibold text-orange-400">
+            <span>🔥</span><span>${streak}</span>
+          </div>` : ''}
+          <span class="text-xs text-white/25">${data.completed.length} выполнено всего</span>
+        </div>
+
+        <div class="bg-[#282e33] rounded-2xl p-5 mb-4 ${todayDone ? 'opacity-70' : ''}">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full ${catColors[task.cat] || 'text-white/40 bg-white/5'}">
+              ${task.cat} ${task.label}
+            </span>
+            <span class="text-xs text-white/25 ml-auto">Задание дня</span>
+          </div>
+          <h2 class="text-base font-semibold text-white/90 mb-2 leading-snug">${esc(task.title)}</h2>
+          <p class="text-sm text-white/50 leading-relaxed mb-5">${esc(task.desc)}</p>
+          <button id="btn-gym-done"
+            class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all
+              ${todayDone
+                ? 'bg-green-500/15 text-green-400 cursor-default'
+                : 'bg-blue-600 hover:bg-blue-500 text-white'}">
+            ${todayDone ? '✓ Выполнено сегодня' : 'Отметить как выполнено'}
+          </button>
+        </div>
+
+        <div class="bg-[#282e33] rounded-2xl p-4">
+          <div class="text-xs text-white/25 font-medium mb-3">Последние 14 дней</div>
+          <div class="flex gap-1.5">
+            ${last14.map(({ key, day, dow, done, isToday }) => `
+              <div class="flex flex-col items-center gap-1 flex-1">
+                <div class="text-[10px] text-white/20">${dow}</div>
+                <div class="w-full aspect-square rounded-md flex items-center justify-center text-[11px] font-medium transition-all
+                  ${done ? 'bg-green-500/25 text-green-400' : isToday ? 'bg-white/8 text-white/60 ring-1 ring-white/20' : 'bg-white/4 text-white/20'}">
+                  ${done ? '✓' : day}
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>`
+
+    if (!todayDone) {
+      document.getElementById('btn-gym-done').addEventListener('click', () => {
+        const data = designGymData()
+        if (!data.completed.includes(today)) data.completed.push(today)
+        save()
+        renderDesignGym()
+      })
+    }
+  }
+
+
   function deadlineInfo(dateStr) {
     if (!dateStr) return null
     const today = new Date(); today.setHours(0,0,0,0)
@@ -1214,6 +1405,7 @@ import '../styles/global.css';
     const logoutBtn = document.getElementById('btn-logout')
     const historyBtn = document.getElementById('btn-history')
     const journalBtn = document.getElementById('btn-journal')
+    const designGymBtn = document.getElementById('btn-design-gym')
     const backupBtn = document.getElementById('btn-backup')
     const coinsBtn = document.getElementById('btn-coins')
     if (session) {
@@ -1222,6 +1414,7 @@ import '../styles/global.css';
       logoutBtn.classList.remove('hidden')
       historyBtn?.classList.remove('hidden')
       journalBtn?.classList.remove('hidden')
+      designGymBtn?.classList.remove('hidden')
       backupBtn?.classList.remove('hidden')
       coinsBtn?.classList.remove('hidden')
       coinsBtn?.classList.add('flex')
@@ -1230,6 +1423,7 @@ import '../styles/global.css';
       logoutBtn.classList.add('hidden')
       historyBtn?.classList.add('hidden')
       journalBtn?.classList.add('hidden')
+      designGymBtn?.classList.add('hidden')
       backupBtn?.classList.add('hidden')
       coinsBtn?.classList.add('hidden')
       coinsBtn?.classList.remove('flex')
@@ -1313,6 +1507,7 @@ import '../styles/global.css';
     const hash = location.hash
     if (hash === '#history') { currentProjectId = null; renderHistory(); return }
     if (hash === '#journal') { currentProjectId = null; renderJournal(); return }
+    if (hash === '#design') { currentProjectId = null; renderDesignGym(); return }
     currentProjectId = hash.startsWith('#p/') ? hash.slice(3) : null
     render()
   }
@@ -2465,6 +2660,7 @@ import '../styles/global.css';
   document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal)
   document.getElementById('btn-history').addEventListener('click', () => go('history'))
   document.getElementById('btn-journal').addEventListener('click', () => go('journal'))
+  document.getElementById('btn-design-gym').addEventListener('click', () => go('design'))
   document.getElementById('btn-backup').addEventListener('click', downloadBackup)
   document.getElementById('btn-stop-timer').addEventListener('click', async () => {
     await stopTimer()

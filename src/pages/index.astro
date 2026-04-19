@@ -30,6 +30,10 @@ import '../styles/global.css';
       <button id="btn-stop-timer" class="text-red-400/70 hover:text-red-300 transition-colors leading-none ml-0.5">⏹</button>
     </div>
     <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+      <button id="btn-journal"
+        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
+        Дневник
+      </button>
       <button id="btn-history"
         class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
         История
@@ -753,6 +757,85 @@ import '../styles/global.css';
     filterEl.addEventListener('change', () => renderEntries(filterEl.value))
   }
 
+  // ─── JOURNAL ─────────────────────────────────────────────────────────────────
+  function journalEntries() {
+    if (!appData.journal) appData.journal = []
+    return appData.journal
+  }
+
+  function fmtJournalDate(dateKey) {
+    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+    const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
+    const [y, m, dd] = dateKey.split('-').map(Number)
+    const d = new Date(y, m-1, dd)
+    const today = todayKey()
+    const ystd = new Date(); ystd.setDate(ystd.getDate()-1)
+    const ystdKey = `${ystd.getFullYear()}-${String(ystd.getMonth()+1).padStart(2,'0')}-${String(ystd.getDate()).padStart(2,'0')}`
+    if (dateKey === today) return 'Сегодня'
+    if (dateKey === ystdKey) return 'Вчера'
+    return `${dayNames[d.getDay()]}, ${dd} ${months[m-1]} ${y}`
+  }
+
+  function renderJournal() {
+    document.getElementById('header-breadcrumb').classList.add('hidden')
+    document.getElementById('btn-new-project').classList.add('hidden')
+    const app = document.getElementById('app')
+    const today = todayKey()
+    const entries = journalEntries()
+    const todayEntry = entries.find(e => e.date === today)
+    const past = [...entries].filter(e => e.date !== today).sort((a, b) => b.date.localeCompare(a.date))
+
+    app.innerHTML = `
+      <div class="p-5 max-w-2xl mx-auto">
+        <div class="flex items-center gap-3 mb-6">
+          <h1 class="text-lg font-bold text-white/70 flex-1">Дневник</h1>
+          <span class="text-xs text-white/25">${fmtJournalDate(today)}</span>
+        </div>
+
+        <div class="bg-[#282e33] rounded-2xl p-4 mb-8">
+          <div class="text-xs text-white/30 font-medium uppercase tracking-wider mb-3">Что сделал сегодня?</div>
+          <textarea id="journal-today"
+            class="w-full bg-transparent text-sm text-white/80 placeholder-white/20 resize-none focus:outline-none min-h-[100px]"
+            placeholder="Запиши что угодно — задачи, мысли, события дня..."
+          >${todayEntry ? todayEntry.content : ''}</textarea>
+          <div class="flex justify-end mt-2">
+            <span id="journal-saved" class="text-xs text-white/20 transition-opacity opacity-0">Сохранено</span>
+          </div>
+        </div>
+
+        ${past.length ? `
+          <div class="text-xs text-white/25 font-medium uppercase tracking-wider mb-4">Прошлые записи</div>
+          <div class="flex flex-col gap-3" id="journal-past">
+            ${past.map(e => `
+              <div class="bg-[#282e33] rounded-xl p-4" data-journal-date="${e.date}">
+                <div class="text-xs text-white/35 font-medium mb-2">${fmtJournalDate(e.date)}</div>
+                <div class="text-sm text-white/60 whitespace-pre-wrap leading-relaxed">${esc(e.content)}</div>
+              </div>`).join('')}
+          </div>
+        ` : `
+          <div class="text-center py-8 text-white/20 text-sm">Прошлых записей пока нет</div>
+        `}
+      </div>`
+
+    let jSaveTimer = null
+    const textarea = document.getElementById('journal-today')
+    const savedEl = document.getElementById('journal-saved')
+    textarea.addEventListener('input', () => {
+      clearTimeout(jSaveTimer)
+      savedEl.style.opacity = '0'
+      jSaveTimer = setTimeout(() => {
+        const content = textarea.value
+        const entries = journalEntries()
+        const idx = entries.findIndex(e => e.date === today)
+        if (idx >= 0) entries[idx].content = content
+        else entries.push({ id: uid(), date: today, content, createdAt: Date.now() })
+        save()
+        savedEl.style.opacity = '1'
+        setTimeout(() => { savedEl.style.opacity = '0' }, 1800)
+      }, 800)
+    })
+  }
+
 
   function deadlineInfo(dateStr) {
     if (!dateStr) return null
@@ -1029,6 +1112,7 @@ import '../styles/global.css';
     const emailEl = document.getElementById('header-user-email')
     const logoutBtn = document.getElementById('btn-logout')
     const historyBtn = document.getElementById('btn-history')
+    const journalBtn = document.getElementById('btn-journal')
     const backupBtn = document.getElementById('btn-backup')
     const coinsBtn = document.getElementById('btn-coins')
     if (session) {
@@ -1036,6 +1120,7 @@ import '../styles/global.css';
       emailEl.classList.remove('hidden')
       logoutBtn.classList.remove('hidden')
       historyBtn?.classList.remove('hidden')
+      journalBtn?.classList.remove('hidden')
       backupBtn?.classList.remove('hidden')
       coinsBtn?.classList.remove('hidden')
       coinsBtn?.classList.add('flex')
@@ -1043,6 +1128,7 @@ import '../styles/global.css';
       emailEl.classList.add('hidden')
       logoutBtn.classList.add('hidden')
       historyBtn?.classList.add('hidden')
+      journalBtn?.classList.add('hidden')
       backupBtn?.classList.add('hidden')
       coinsBtn?.classList.add('hidden')
       coinsBtn?.classList.remove('flex')
@@ -1125,6 +1211,7 @@ import '../styles/global.css';
   function route() {
     const hash = location.hash
     if (hash === '#history') { currentProjectId = null; renderHistory(); return }
+    if (hash === '#journal') { currentProjectId = null; renderJournal(); return }
     currentProjectId = hash.startsWith('#p/') ? hash.slice(3) : null
     render()
   }
@@ -2276,6 +2363,7 @@ import '../styles/global.css';
   document.getElementById('btn-home').addEventListener('click', () => go(''))
   document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal)
   document.getElementById('btn-history').addEventListener('click', () => go('history'))
+  document.getElementById('btn-journal').addEventListener('click', () => go('journal'))
   document.getElementById('btn-backup').addEventListener('click', downloadBackup)
   document.getElementById('btn-stop-timer').addEventListener('click', async () => {
     await stopTimer()

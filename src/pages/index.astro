@@ -1749,15 +1749,6 @@ import '../styles/global.css';
               <button data-action="delete-project" data-project-id="${proj.id}"
                 class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 text-sm flex-shrink-0 mt-0.5 ml-2">✕</button>
             </div>
-            <div class="mb-2.5">
-              ${(() => { const st = statusById(proj.status || boardStatuses()[0]?.id); return `
-              <button data-action="cycle-status" data-project-id="${proj.id}"
-                class="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full transition-all hover:opacity-80"
-                style="background:${st.color}18;color:${st.color}">
-                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${st.color}"></span>
-                ${esc(st.label)}
-              </button>` })()}
-            </div>
             ${dl ? `<div class="mb-2.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full ${dlBadgeColor}">⏱ ${dl.label}</span></div>` : ''}
             <div class="h-1.5 bg-black/8 rounded-full overflow-hidden mb-1.5">
               <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-green-500' : 'bg-blue-500'}"

@@ -2128,16 +2128,21 @@ import '../styles/global.css';
                   class="w-20 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
                 <span class="text-xs text-white/25">ч</span>
               </div>
-              ${p.timeHours && p.paid ? `<span class="text-green-400/70 text-xs font-medium">$${fmtMoney(Math.round(Number(p.paid)/Number(p.timeHours)))}/ч</span>` : ''}
               ${p.estHours && p.timeHours ? (() => {
                 const diff = Number(p.estHours) - Number(p.timeHours)
                 return diff > 0
-                  ? `<span class="text-blue-400/60 text-xs">сэкономлено ${diff}ч</span>`
+                  ? `<span class="text-blue-400/60 text-xs">−${diff}ч к оценке</span>`
                   : diff < 0
-                  ? `<span class="text-orange-400/70 text-xs">перерасход ${Math.abs(diff)}ч</span>`
+                  ? `<span class="text-orange-400/70 text-xs">+${Math.abs(diff)}ч сверх оценки</span>`
                   : ''
               })() : ''}
             </div>`)}
+          ${p.timeHours && p.paid ? fieldRow('Рейт',
+            `<div class="flex items-center gap-3">
+              <span class="text-xl font-bold text-green-400">$${fmtMoney(Math.round(Number(p.paid)/Number(p.timeHours)))}</span>
+              <span class="text-sm text-white/30">/ час</span>
+              <span class="text-xs text-white/20">(${fmtMoney(p.paid)} ÷ ${p.timeHours}ч)</span>
+            </div>`) : ''}
           ${fieldRow('Ссылки',
             `<div class="flex flex-col gap-2">
               ${(p.crmLinks||[]).map((lnk,i) => `

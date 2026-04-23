@@ -1903,15 +1903,17 @@ import '../styles/global.css';
 
       return `
         <div class="flex flex-col gap-2 mb-5">
-          <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap">
-            ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'All')}
-            ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
-          </div>
-          <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap">
-            ${filterBtn('crm-filter-status','all',crmStatusFilter,'All')}
-            ${filterBtn('crm-filter-status','active',crmStatusFilter,'Active')}
-            ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Pause')}
-            ${filterBtn('crm-filter-status','done',crmStatusFilter,'Done')}
+          <div class="flex gap-2">
+            <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap flex-1">
+              ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'All')}
+              ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
+            </div>
+            <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap flex-1">
+              ${filterBtn('crm-filter-status','all',crmStatusFilter,'All')}
+              ${filterBtn('crm-filter-status','active',crmStatusFilter,'Active')}
+              ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Pause')}
+              ${filterBtn('crm-filter-status','done',crmStatusFilter,'Done')}
+            </div>
           </div>
           <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap">
             ${filterBtn('crm-filter-client','all',crmClientFilter,'All')}

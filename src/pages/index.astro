@@ -737,7 +737,7 @@ import '../styles/global.css';
     document.getElementById('btn-new-project').classList.add('hidden')
     const app = document.getElementById('app')
     app.innerHTML = `
-      <div class="p-5 max-w-3xl mx-auto">
+      <div class="px-4 py-6 max-w-5xl mx-auto">
         <div class="flex items-center gap-3 mb-5">
           <h1 class="text-lg font-bold text-white/70 flex-1">История времени</h1>
           <select id="history-filter" class="bg-[#282e33] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/60 focus:outline-none">
@@ -861,7 +861,7 @@ import '../styles/global.css';
       : `<span class="w-4 h-4 rounded-full border border-white/15 inline-block"></span>`
 
     app.innerHTML = `
-      <div class="p-5 max-w-3xl mx-auto">
+      <div class="px-4 py-6 max-w-5xl mx-auto">
         <div class="flex items-center gap-3 mb-5">
           <h1 class="text-lg font-bold text-white/70">Дневник</h1>
           <div class="flex items-center gap-1 ml-4">
@@ -1158,7 +1158,7 @@ import '../styles/global.css';
     const remaining = total - doneSoFar
 
     app.innerHTML = `
-      <div class="p-5 max-w-2xl mx-auto">
+      <div class="px-4 py-6 max-w-5xl mx-auto">
         <div class="flex items-center gap-3 mb-4">
           <h1 class="text-lg font-bold text-white/70 flex-1">Дизайн</h1>
           ${streak > 0 ? `<div class="flex items-center gap-1.5 text-sm font-semibold text-orange-400"><span>🔥</span><span>${streak}</span></div>` : ''}
@@ -1734,7 +1734,7 @@ import '../styles/global.css';
     for (const s of statuses) counts[s.id] = projects().filter(p => (p.status || statuses[0].id) === s.id).length
     if (!homeTab || !statuses.find(s => s.id === homeTab)) homeTab = smartDefaultTab()
 
-    let html = `<div class="p-5 max-w-5xl mx-auto">
+    let html = `<div class="px-4 py-6 max-w-5xl mx-auto">
       ${backupBannerHTML()}
       <!-- tabs + search -->
       <div class="flex items-center gap-2 mb-5 flex-wrap">
@@ -1946,7 +1946,7 @@ import '../styles/global.css';
     }
 
     document.getElementById('app').innerHTML = `
-      <div class="max-w-4xl mx-auto px-4 py-6">
+      <div class="max-w-5xl mx-auto px-4 py-6">
         <div class="flex items-center justify-between mb-5">
           <div class="flex items-center gap-1 bg-white/5 rounded-xl p-1">
             ${tabBtn('clients','Клиенты')}
@@ -2006,7 +2006,7 @@ import '../styles/global.css';
     }
 
     document.getElementById('app').innerHTML = `
-      <div class="max-w-4xl mx-auto px-4 py-6">
+      <div class="max-w-5xl mx-auto px-4 py-6">
         <!-- back + title -->
         <div class="flex items-center gap-3 mb-5">
           <button data-action="crm-back-to-list"
@@ -2076,7 +2076,7 @@ import '../styles/global.css';
       </div>`
 
     document.getElementById('app').innerHTML = `
-      <div class="max-w-4xl mx-auto px-4 py-6">
+      <div class="max-w-5xl mx-auto px-4 py-6">
         <div class="flex items-center gap-3 mb-5">
           <button data-action="${p.crmClientId ? 'crm-back-to-client' : 'crm-back-to-list'}" data-client-id="${p.crmClientId||''}"
             class="flex items-center gap-1.5 text-sm text-white/50 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
@@ -2220,7 +2220,7 @@ import '../styles/global.css';
     const allDone = total > 0 && done === total
 
     document.getElementById('app').innerHTML = `
-      <div class="max-w-5xl mx-auto px-4 py-5">
+      <div class="max-w-5xl mx-auto px-4 py-6">
 
         <!-- Header -->
         <div class="mb-5">

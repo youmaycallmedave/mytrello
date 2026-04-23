@@ -2796,7 +2796,7 @@ import '../styles/global.css';
       appData.activeBoardId = newBoard.id
       save(); closeModal(); homeTab = smartDefaultTab(); homeSearch = ''; currentProjectId = null; location.hash = ''; render(); return
     }
-    if (a === 'nav-home') { go(''); return }
+    if (a === 'nav-home') { history.back(); return }
     if (a === 'download-backup') { await downloadBackup(); return }
     if (a === 'snooze-backup') {
       localStorage.setItem(BACKUP_KEY, (Date.now() - 6 * 24 * 60 * 60 * 1000).toString())
@@ -3051,8 +3051,8 @@ import '../styles/global.css';
     if (a === 'toggle-hide-done-subtasks') { hideDoneSubtasks = !hideDoneSubtasks; rerenderProject(); return }
 
     // ── CRM actions ──────────────────────────────────────────────────────────
-    if (a === 'crm-back-to-list') { go('crm'); return }
-    if (a === 'crm-back-to-client') { go('crm-c-' + el.dataset.clientId); return }
+    if (a === 'crm-back-to-list') { history.back(); return }
+    if (a === 'crm-back-to-client') { history.back(); return }
     if (a === 'crm-open-client') { go('crm-c-' + (el.dataset.clientId || el.closest('[data-client-id]')?.dataset.clientId)); return }
     if (a === 'crm-open-project') { go('crm-p-' + el.closest('[data-project-id]').dataset.projectId); return }
     if (a === 'crm-add-client') {

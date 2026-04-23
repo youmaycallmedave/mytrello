@@ -30,6 +30,10 @@ import '../styles/global.css';
       <button id="btn-stop-timer" class="text-red-400/70 hover:text-red-300 transition-colors leading-none ml-0.5">⏹</button>
     </div>
     <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+      <button id="btn-crm"
+        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
+        CRM
+      </button>
       <button id="btn-design-gym"
         class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
         Дизайн
@@ -264,6 +268,9 @@ import '../styles/global.css';
       delete appData.projects
     }
     if (!appData.activeBoardId) appData.activeBoardId = appData.boards[0]?.id
+    if (!appData.crm) appData.crm = { clients: [], projects: [] }
+    if (!appData.crm.clients) appData.crm.clients = []
+    if (!appData.crm.projects) appData.crm.projects = []
     // one-time rename: Работа → Work
     const workBoard = appData.boards?.find(b => b.id === 'work' && b.name === 'Работа')
     if (workBoard) { workBoard.name = 'Work'; workBoard.emoji = '💼' }
@@ -1505,6 +1512,7 @@ import '../styles/global.css';
       historyBtn?.classList.remove('hidden')
       journalBtn?.classList.remove('hidden')
       designGymBtn?.classList.remove('hidden')
+      document.getElementById('btn-crm')?.classList.remove('hidden')
       backupBtn?.classList.remove('hidden')
       coinsBtn?.classList.remove('hidden')
       coinsBtn?.classList.add('flex')
@@ -1598,6 +1606,9 @@ import '../styles/global.css';
     if (hash === '#history') { currentProjectId = null; renderHistory(); return }
     if (hash === '#journal') { currentProjectId = null; renderJournal(); return }
     if (hash === '#design') { currentProjectId = null; renderDesignGym(); return }
+    if (hash === '#crm') { currentProjectId = null; renderCRM(); return }
+    if (hash.startsWith('#crm-c-')) { currentProjectId = null; renderCRMClient(hash.slice(7)); return }
+    if (hash.startsWith('#crm-p-')) { currentProjectId = null; renderCRMProject(hash.slice(7)); return }
     currentProjectId = hash.startsWith('#p/') ? hash.slice(3) : null
     render()
   }
@@ -1777,6 +1788,283 @@ import '../styles/global.css';
           </div>
         </div>`
     }).join('')
+  }
+
+  // ─── CRM ─────────────────────────────────────────────────────────────────────
+  function crm() {
+    if (!appData.crm) appData.crm = { clients: [], projects: [] }
+    return appData.crm
+  }
+  function crmClientProjects(clientId) { return crm().projects.filter(p => p.clientId === clientId) }
+  function crmClient(id) { return crm().clients.find(c => c.id === id) }
+  function crmProject(id) { return crm().projects.find(p => p.id === id) }
+
+  function crmResetHeader() {
+    document.getElementById('header-breadcrumb').classList.add('hidden')
+    document.getElementById('btn-new-project').classList.add('hidden')
+  }
+
+  function fmtMoney(n) { return n != null && n !== '' ? Number(n).toLocaleString('ru-RU') : '' }
+  function fmtDate(d) {
+    if (!d) return ''
+    const [y, m, day] = d.split('-')
+    return `${day}.${m}.${y}`
+  }
+
+  function renderCRM() {
+    crmResetHeader()
+    const data = crm()
+    document.getElementById('app').innerHTML = `
+      <div class="max-w-4xl mx-auto px-4 py-6">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-xl font-bold">CRM</h1>
+          <button data-action="crm-add-client"
+            class="bg-blue-600 hover:bg-blue-500 transition-colors text-sm px-4 py-2 rounded-xl font-medium">
+            + Клиент
+          </button>
+        </div>
+        ${data.clients.length === 0 ? `
+          <div class="text-center py-20 text-white/20 text-sm">Добавь первого клиента</div>
+        ` : `
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${data.clients.map(cl => {
+              const projs = crmClientProjects(cl.id)
+              const active = projs.filter(p => p.status !== 'done').length
+              const totalPaid = projs.reduce((s, p) => s + (Number(p.paid) || 0), 0)
+              const totalBudget = projs.reduce((s, p) => s + (Number(p.budget) || 0), 0)
+              return `<div data-action="crm-open-client" data-client-id="${cl.id}"
+                class="bg-[#282e33] rounded-2xl p-5 cursor-pointer hover:bg-[#2e3540] transition-colors group">
+                <div class="flex items-start justify-between mb-1">
+                  <h2 class="font-semibold text-white/90 leading-tight">${esc(cl.name)}</h2>
+                  <button data-action="crm-delete-client" data-client-id="${cl.id}"
+                    class="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 text-xs ml-2 flex-shrink-0">✕</button>
+                </div>
+                ${cl.email ? `<div class="text-xs text-white/35 mb-3 truncate">${esc(cl.email)}</div>` : `<div class="mb-3"></div>`}
+                <div class="flex items-center gap-2 text-xs mb-2">
+                  <span class="text-white/40">${projs.length} ${projs.length === 1 ? 'проект' : projs.length >= 2 && projs.length <= 4 ? 'проекта' : 'проектов'}</span>
+                  ${active ? `<span class="text-blue-400/80">· ${active} активных</span>` : ''}
+                </div>
+                ${totalBudget > 0 ? `<div class="text-xs">
+                  <span class="text-green-400 font-medium">${fmtMoney(totalPaid)} €</span>
+                  <span class="text-white/25"> / ${fmtMoney(totalBudget)} €</span>
+                </div>` : ''}
+              </div>`
+            }).join('')}
+          </div>
+        `}
+        <!-- add client form (hidden) -->
+        <div id="crm-add-client-form" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background:rgba(0,0,0,0.6)">
+          <div class="bg-[#1e2429] border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+            <h3 class="font-semibold mb-4">Новый клиент</h3>
+            <input id="crm-client-name" type="text" placeholder="Имя / название компании"
+              class="w-full bg-[#282e33] border border-white/10 rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:border-blue-500"/>
+            <input id="crm-client-email" type="text" placeholder="Email или контакт (необязательно)"
+              class="w-full bg-[#282e33] border border-white/10 rounded-xl px-3 py-2.5 text-sm mb-4 focus:outline-none focus:border-blue-500"/>
+            <div class="flex gap-2">
+              <button data-action="crm-confirm-add-client"
+                class="flex-1 bg-blue-600 hover:bg-blue-500 transition-colors py-2.5 rounded-xl text-sm font-medium">Добавить</button>
+              <button data-action="crm-cancel-add-client"
+                class="px-4 py-2.5 text-white/40 hover:text-white/70 text-sm">Отмена</button>
+            </div>
+          </div>
+        </div>
+      </div>`
+  }
+
+  function renderCRMClient(clientId) {
+    crmResetHeader()
+    const cl = crmClient(clientId)
+    if (!cl) { go('crm'); return }
+    const projs = crmClientProjects(clientId)
+    const active = projs.filter(p => p.status !== 'done')
+    const done = projs.filter(p => p.status === 'done')
+
+    const statusLabel = { active: 'Активный', paused: 'Пауза', done: 'Завершён' }
+    const statusColor = { active: 'text-blue-400 bg-blue-400/10', paused: 'text-yellow-400 bg-yellow-400/10', done: 'text-green-400 bg-green-400/10' }
+
+    const projCard = p => {
+      const pct = p.budget > 0 ? Math.round((p.paid || 0) / p.budget * 100) : 0
+      return `<div data-action="crm-open-project" data-project-id="${p.id}"
+        class="bg-[#282e33] rounded-2xl p-4 cursor-pointer hover:bg-[#2e3540] transition-colors group">
+        <div class="flex items-start justify-between mb-2">
+          <h3 class="font-medium text-white/90 text-sm leading-snug flex-1">${esc(p.title)}</h3>
+          <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+            <span class="text-xs px-2 py-0.5 rounded-full ${statusColor[p.status] || statusColor.active}">${statusLabel[p.status] || 'Активный'}</span>
+            <button data-action="crm-delete-project" data-project-id="${p.id}"
+              class="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 text-xs">✕</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-white/40 mb-3">
+          ${p.startDate ? `<span>${fmtDate(p.startDate)}${p.endDate ? ' → ' + fmtDate(p.endDate) : ''}</span>` : ''}
+          ${p.timeHours ? `<span>⏱ ${p.timeHours}ч</span>` : ''}
+        </div>
+        ${p.budget > 0 ? `
+          <div class="h-1 bg-white/8 rounded-full overflow-hidden mb-1.5">
+            <div class="h-full bg-green-500 rounded-full" style="width:${pct}%"></div>
+          </div>
+          <div class="flex justify-between text-xs">
+            <span class="text-green-400">${fmtMoney(p.paid || 0)} €</span>
+            <span class="text-white/30">${fmtMoney(p.budget)} €</span>
+          </div>` : ''}
+      </div>`
+    }
+
+    document.getElementById('app').innerHTML = `
+      <div class="max-w-4xl mx-auto px-4 py-6">
+        <!-- back + title -->
+        <div class="flex items-center gap-3 mb-5">
+          <button data-action="crm-back-to-list"
+            class="flex items-center gap-1.5 text-sm text-white/50 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            Назад
+          </button>
+          <h1 class="text-xl font-bold flex-1" id="crm-cl-title">${esc(cl.name)}</h1>
+          <button data-action="crm-edit-client" data-client-id="${cl.id}"
+            class="text-white/30 hover:text-white/60 text-sm px-2 py-1 rounded hover:bg-white/5 transition-colors">✎</button>
+        </div>
+        <!-- client meta -->
+        <div class="bg-[#282e33] rounded-2xl p-4 mb-6 flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-white/30 w-16 flex-shrink-0">Контакт</span>
+            <span class="text-sm text-white/70 crm-editable" data-action="crm-inline-edit" data-field="email" data-client-id="${cl.id}">${cl.email ? esc(cl.email) : '<span class="text-white/20">не указан</span>'}</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="text-xs text-white/30 w-16 flex-shrink-0 mt-0.5">Заметка</span>
+            <span class="text-sm text-white/70 crm-editable" data-action="crm-inline-edit" data-field="notes" data-client-id="${cl.id}">${cl.notes ? esc(cl.notes) : '<span class="text-white/20">добавить заметку</span>'}</span>
+          </div>
+        </div>
+        <!-- projects -->
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-white/70 text-sm">Проекты</h2>
+          <button data-action="crm-add-project" data-client-id="${cl.id}"
+            class="bg-blue-600 hover:bg-blue-500 transition-colors text-xs px-3 py-1.5 rounded-lg font-medium">+ Проект</button>
+        </div>
+        ${active.length === 0 && done.length === 0 ? `
+          <div class="text-center py-10 text-white/20 text-sm">Нет проектов</div>
+        ` : `
+          <div class="flex flex-col gap-3 mb-6">${active.map(projCard).join('')}</div>
+          ${done.length ? `
+            <div class="text-xs text-white/25 font-medium mb-2">Завершённые</div>
+            <div class="flex flex-col gap-3 opacity-60">${done.map(projCard).join('')}</div>
+          ` : ''}
+        `}
+        <!-- add project form (hidden) -->
+        <div id="crm-add-project-form" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background:rgba(0,0,0,0.6)">
+          <div class="bg-[#1e2429] border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+            <h3 class="font-semibold mb-4">Новый проект</h3>
+            <input id="crm-project-title" type="text" placeholder="Название проекта"
+              class="w-full bg-[#282e33] border border-white/10 rounded-xl px-3 py-2.5 text-sm mb-4 focus:outline-none focus:border-blue-500"/>
+            <div class="flex gap-2">
+              <button data-action="crm-confirm-add-project" data-client-id="${cl.id}"
+                class="flex-1 bg-blue-600 hover:bg-blue-500 transition-colors py-2.5 rounded-xl text-sm font-medium">Создать</button>
+              <button data-action="crm-cancel-add-project"
+                class="px-4 py-2.5 text-white/40 hover:text-white/70 text-sm">Отмена</button>
+            </div>
+          </div>
+        </div>
+      </div>`
+  }
+
+  function renderCRMProject(projectId) {
+    crmResetHeader()
+    const p = crmProject(projectId)
+    if (!p) { go('crm'); return }
+    const cl = crmClient(p.clientId)
+    const statusOpts = [['active','Активный','text-blue-400 bg-blue-400/10'],['paused','Пауза','text-yellow-400 bg-yellow-400/10'],['done','Завершён','text-green-400 bg-green-400/10']]
+    const curStatus = statusOpts.find(s => s[0] === (p.status || 'active')) || statusOpts[0]
+
+    const fieldRow = (label, content) => `
+      <div class="flex items-start gap-3 py-3 border-b border-white/5 last:border-0">
+        <span class="text-xs text-white/30 w-24 flex-shrink-0 mt-0.5">${label}</span>
+        <div class="flex-1 text-sm text-white/75">${content}</div>
+      </div>`
+
+    document.getElementById('app').innerHTML = `
+      <div class="max-w-2xl mx-auto px-4 py-6">
+        <div class="flex items-center gap-3 mb-5">
+          <button data-action="crm-back-to-client" data-client-id="${p.clientId}"
+            class="flex items-center gap-1.5 text-sm text-white/50 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            ${cl ? esc(cl.name) : 'Назад'}
+          </button>
+        </div>
+        <div class="flex items-start justify-between mb-4">
+          <h1 class="text-xl font-bold flex-1 leading-snug crm-editable cursor-text" data-action="crm-edit-project-field" data-field="title" data-project-id="${p.id}">${esc(p.title)}</h1>
+          <div class="relative ml-3 flex-shrink-0" id="crm-status-wrap">
+            <button data-action="crm-toggle-status-menu" data-project-id="${p.id}"
+              class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${curStatus[2]}">
+              ${curStatus[1]}
+              <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="crm-status-menu" class="hidden absolute top-full right-0 mt-1 z-50 bg-[#1e2429] border border-white/10 rounded-xl shadow-xl overflow-hidden min-w-[140px]">
+              ${statusOpts.map(s => `<button data-action="crm-set-status" data-project-id="${p.id}" data-status="${s[0]}"
+                class="w-full text-left px-3 py-2.5 text-sm ${s[2]} hover:bg-white/8 transition-colors">${s[1]}</button>`).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="bg-[#282e33] rounded-2xl px-4 mb-4">
+          ${fieldRow('Период',
+            `<div class="flex items-center gap-2">
+              <input type="date" value="${p.startDate||''}" data-action="crm-update-field" data-field="startDate" data-project-id="${p.id}"
+                class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500 [color-scheme:dark]"/>
+              <span class="text-white/25">→</span>
+              <input type="date" value="${p.endDate||''}" data-action="crm-update-field" data-field="endDate" data-project-id="${p.id}"
+                class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500 [color-scheme:dark]"/>
+            </div>`)}
+          ${fieldRow('Бюджет',
+            `<div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-white/40 text-xs">Всего</span>
+                <input type="number" value="${p.budget||''}" placeholder="0" data-action="crm-update-field" data-field="budget" data-project-id="${p.id}"
+                  class="w-28 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
+                <span class="text-white/40 text-xs">€ &nbsp;·&nbsp; Оплачено</span>
+                <input type="number" value="${p.paid||''}" placeholder="0" data-action="crm-update-field" data-field="paid" data-project-id="${p.id}"
+                  class="w-28 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
+                <span class="text-white/40 text-xs">€</span>
+              </div>
+              ${Number(p.budget) > 0 ? `
+                <div class="h-1.5 bg-white/8 rounded-full overflow-hidden max-w-xs">
+                  <div class="h-full bg-green-500 rounded-full transition-all" style="width:${Math.min(100,Math.round((Number(p.paid)||0)/Number(p.budget)*100))}%"></div>
+                </div>
+                <div class="text-xs text-white/40">${Math.round((Number(p.paid)||0)/Number(p.budget)*100)}% оплачено · ${fmtMoney(Number(p.budget)-(Number(p.paid)||0))} € остаток</div>
+              ` : ''}
+            </div>`)}
+          ${fieldRow('Время',
+            `<div class="flex items-center gap-2">
+              <input type="number" step="0.5" value="${p.timeHours||''}" placeholder="0" data-action="crm-update-field" data-field="timeHours" data-project-id="${p.id}"
+                class="w-24 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
+              <span class="text-white/40 text-xs">часов</span>
+              ${p.timeHours && p.budget ? `<span class="text-white/25 text-xs ml-2">· ${fmtMoney(Math.round(Number(p.budget)/Number(p.timeHours)))} €/ч</span>` : ''}
+            </div>`)}
+          ${fieldRow('Ссылки',
+            `<div class="flex flex-col gap-2">
+              ${(p.links||[]).map((lnk,i) => `
+                <div class="flex items-center gap-2">
+                  <a href="${esc(lnk.url)}" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm truncate flex-1">${esc(lnk.label||lnk.url)}</a>
+                  <button data-action="crm-delete-link" data-project-id="${p.id}" data-link-index="${i}"
+                    class="text-white/20 hover:text-red-400 text-xs transition-colors flex-shrink-0">✕</button>
+                </div>`).join('')}
+              <div id="crm-link-form" class="hidden flex-col gap-1.5">
+                <input id="crm-link-label" type="text" placeholder="Название (необязательно)"
+                  class="bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500"/>
+                <input id="crm-link-url" type="text" placeholder="https://..."
+                  class="bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500"/>
+                <div class="flex gap-2">
+                  <button data-action="crm-confirm-add-link" data-project-id="${p.id}"
+                    class="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors">Добавить</button>
+                  <button data-action="crm-cancel-add-link"
+                    class="text-xs text-white/30 hover:text-white/60">Отмена</button>
+                </div>
+              </div>
+              <button data-action="crm-show-add-link" data-project-id="${p.id}"
+                class="text-xs text-white/30 hover:text-blue-400 transition-colors self-start">+ ссылка</button>
+            </div>`)}
+          ${fieldRow('Заметка',
+            `<textarea data-action="crm-update-field" data-field="notes" data-project-id="${p.id}"
+              rows="3" placeholder="Комментарий, детали проекта..."
+              class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue-500">${esc(p.notes||'')}</textarea>`)}
+        </div>
+      </div>`
   }
 
   function renderProject() {
@@ -2606,6 +2894,92 @@ import '../styles/global.css';
     }
     if (a === 'toggle-hide-done-tasks') { hideDoneTasks = !hideDoneTasks; rerenderProject(); return }
     if (a === 'toggle-hide-done-subtasks') { hideDoneSubtasks = !hideDoneSubtasks; rerenderProject(); return }
+
+    // ── CRM actions ──────────────────────────────────────────────────────────
+    if (a === 'crm-back-to-list') { go('crm'); return }
+    if (a === 'crm-back-to-client') { go('crm-c-' + el.dataset.clientId); return }
+    if (a === 'crm-open-client') { go('crm-c-' + el.closest('[data-client-id]').dataset.clientId); return }
+    if (a === 'crm-open-project') { go('crm-p-' + el.closest('[data-project-id]').dataset.projectId); return }
+    if (a === 'crm-add-client') {
+      document.getElementById('crm-add-client-form').classList.remove('hidden')
+      setTimeout(() => document.getElementById('crm-client-name')?.focus(), 50); return
+    }
+    if (a === 'crm-cancel-add-client') { document.getElementById('crm-add-client-form').classList.add('hidden'); return }
+    if (a === 'crm-confirm-add-client') {
+      const name = document.getElementById('crm-client-name').value.trim()
+      if (!name) return
+      const email = document.getElementById('crm-client-email').value.trim()
+      crm().clients.push({ id: uid(), name, email, notes: '', createdAt: Date.now() })
+      save(); renderCRM(); return
+    }
+    if (a === 'crm-delete-client') {
+      e.stopPropagation()
+      const cid = el.dataset.clientId
+      if (!confirm('Удалить клиента и все его проекты?')) return
+      appData.crm.clients = appData.crm.clients.filter(c => c.id !== cid)
+      appData.crm.projects = appData.crm.projects.filter(p => p.clientId !== cid)
+      save(); renderCRM(); return
+    }
+    if (a === 'crm-edit-client') {
+      const cl = crmClient(el.dataset.clientId); if (!cl) return
+      const name = prompt('Имя клиента', cl.name); if (name === null) return
+      if (name.trim()) cl.name = name.trim()
+      const email = prompt('Контакт (email/telegram)', cl.email || ''); if (email !== null) cl.email = email.trim()
+      save(); renderCRMClient(cl.id); return
+    }
+    if (a === 'crm-inline-edit') {
+      const field = el.dataset.field, cid = el.dataset.clientId
+      const cl = crmClient(cid); if (!cl) return
+      const val = prompt(field === 'email' ? 'Контакт' : 'Заметка', cl[field] || ''); if (val === null) return
+      cl[field] = val.trim(); save(); renderCRMClient(cid); return
+    }
+    if (a === 'crm-add-project') {
+      document.getElementById('crm-add-project-form').classList.remove('hidden')
+      setTimeout(() => document.getElementById('crm-project-title')?.focus(), 50); return
+    }
+    if (a === 'crm-cancel-add-project') { document.getElementById('crm-add-project-form').classList.add('hidden'); return }
+    if (a === 'crm-confirm-add-project') {
+      const title = document.getElementById('crm-project-title').value.trim(); if (!title) return
+      const cid = el.dataset.clientId
+      crm().projects.push({ id: uid(), clientId: cid, title, status: 'active', startDate: null, endDate: null, budget: '', paid: '', timeHours: '', links: [], notes: '', createdAt: Date.now() })
+      save(); renderCRMClient(cid); return
+    }
+    if (a === 'crm-delete-project') {
+      e.stopPropagation()
+      const pid = el.closest('[data-project-id]').dataset.projectId
+      const p = crmProject(pid); if (!p || !confirm('Удалить проект?')) return
+      appData.crm.projects = appData.crm.projects.filter(x => x.id !== pid)
+      save(); renderCRMClient(p.clientId); return
+    }
+    if (a === 'crm-toggle-status-menu') { document.getElementById('crm-status-menu')?.classList.toggle('hidden'); return }
+    if (a === 'crm-set-status') {
+      const p = crmProject(el.dataset.projectId); if (p) { p.status = el.dataset.status; save(); renderCRMProject(p.id) }; return
+    }
+    if (a === 'crm-edit-project-field') {
+      const p = crmProject(el.dataset.projectId); if (!p) return
+      const val = prompt('Название проекта', p.title); if (val === null) return
+      if (val.trim()) { p.title = val.trim(); save(); renderCRMProject(p.id) }; return
+    }
+    if (a === 'crm-show-add-link') {
+      const lf = document.getElementById('crm-link-form')
+      lf?.classList.remove('hidden'); lf?.classList.add('flex'); return
+    }
+    if (a === 'crm-cancel-add-link') {
+      const lf = document.getElementById('crm-link-form')
+      lf?.classList.add('hidden'); lf?.classList.remove('flex'); return
+    }
+    if (a === 'crm-confirm-add-link') {
+      const p = crmProject(el.dataset.projectId); if (!p) return
+      const url = document.getElementById('crm-link-url')?.value.trim(); if (!url) return
+      const label = document.getElementById('crm-link-label')?.value.trim()
+      if (!p.links) p.links = []
+      p.links.push({ id: uid(), label: label || url, url }); save(); renderCRMProject(p.id); return
+    }
+    if (a === 'crm-delete-link') {
+      const p = crmProject(el.dataset.projectId); if (!p) return
+      p.links.splice(parseInt(el.dataset.linkIndex), 1); save(); renderCRMProject(p.id); return
+    }
+
     if (a === 'show-add-subtask') {
       document.getElementById('add-subtask-form').classList.remove('hidden')
       el.classList.add('hidden')
@@ -2714,6 +3088,27 @@ import '../styles/global.css';
     }
   })
 
+  // CRM field autosave
+  document.addEventListener('change', e => {
+    const inp = e.target.closest('[data-action="crm-update-field"]')
+    if (inp) {
+      const p = crmProject(inp.dataset.projectId)
+      if (!p) return
+      p[inp.dataset.field] = inp.value
+      save()
+      // re-render only the budget bar without full re-render for smoothness
+      if (inp.dataset.field === 'budget' || inp.dataset.field === 'paid') renderCRMProject(p.id)
+      return
+    }
+  })
+  document.addEventListener('input', e => {
+    const ta = e.target.closest('textarea[data-action="crm-update-field"]')
+    if (ta) {
+      const p = crmProject(ta.dataset.projectId)
+      if (p) { p[ta.dataset.field] = ta.value; save() }
+    }
+  })
+
   document.addEventListener('change', e => {
     const inp = e.target.closest('[data-action="toggle-task"]')
     if (!inp) return
@@ -2738,6 +3133,7 @@ import '../styles/global.css';
   document.getElementById('btn-history').addEventListener('click', () => go('history'))
   document.getElementById('btn-journal').addEventListener('click', () => go('journal'))
   document.getElementById('btn-design-gym').addEventListener('click', () => go('design'))
+  document.getElementById('btn-crm').addEventListener('click', () => go('crm'))
   document.getElementById('btn-backup').addEventListener('click', downloadBackup)
   document.getElementById('btn-stop-timer').addEventListener('click', async () => {
     await stopTimer()

@@ -2123,10 +2123,12 @@ import '../styles/global.css';
               </div>
               <div class="flex items-center gap-1.5">
                 <span class="text-xs text-white/25">факт</span>
-                <input type="number" step="0.5" value="${p.timeHours||''}" placeholder="0" data-action="crm-update-field" data-field="timeHours" data-project-id="${p.id}"
+                <input type="number" step="0.1" value="${p.timeHours||''}" placeholder="0" data-action="crm-update-field" data-field="timeHours" data-project-id="${p.id}"
+                  id="crm-fact-hours-input"
                   class="w-20 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
                 <span class="text-xs text-white/25">ч</span>
               </div>
+              <span id="crm-tracked-hours" class="text-xs text-white/25 ml-2">⏳</span>
               <span id="crm-hours-diff" class="${(() => { const diff = p.estHours && p.timeHours ? Number(p.estHours) - Number(p.timeHours) : null; return diff !== null && diff > 0 ? 'text-blue-400/60' : 'text-orange-400/70' })()} text-xs">${(() => {
                 if (!p.estHours || !p.timeHours) return ''
                 const diff = Number(p.estHours) - Number(p.timeHours)
@@ -2168,6 +2170,22 @@ import '../styles/global.css';
               class="w-full bg-[#1d2125] border border-white/10 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue-500">${esc(p.crmNotes||'')}</textarea>`)}
         </div>
       </div>`
+    loadTrackedHoursForCRM(p.id)
+  }
+
+  async function loadTrackedHoursForCRM(projId) {
+    const el = document.getElementById('crm-tracked-hours')
+    if (!el || !currentSession) return
+    const { data } = await sb.from('time_entries')
+      .select('duration_seconds')
+      .eq('user_id', currentSession.user.id)
+      .eq('project_id', projId)
+    if (!data?.length) { el.textContent = 'нет данных таймера'; return }
+    const totalSec = data.reduce((s, e) => s + e.duration_seconds, 0)
+    const totalHours = Math.round(totalSec / 360) / 10 // округление до 0.1ч
+    el.innerHTML = `таймер: <span class="text-white/60">${totalHours}ч</span>
+      <button data-action="crm-sync-hours" data-project-id="${projId}" data-hours="${totalHours}"
+        class="ml-2 text-blue-400 hover:text-blue-300 transition-colors">← факт</button>`
   }
 
   function renderProject() {
@@ -3085,6 +3103,16 @@ import '../styles/global.css';
       save(); cid ? renderCRMClient(cid) : renderCRM(); return
     }
     if (a === 'crm-open-tasks') { go('p/' + el.dataset.projectId); return }
+    if (a === 'crm-sync-hours') {
+      const p = getProject(el.dataset.projectId); if (!p) return
+      p.timeHours = el.dataset.hours; save()
+      const inp = document.getElementById('crm-fact-hours-input')
+      if (inp) inp.value = el.dataset.hours
+      // пересчитать рейт
+      const rateEl = document.getElementById('crm-rate-display')
+      if (rateEl && p.paid) rateEl.textContent = '$' + fmtMoney(Math.round(Number(p.paid)/Number(p.timeHours)))
+      return
+    }
     if (a === 'crm-toggle-status-menu') { document.getElementById('crm-status-menu')?.classList.toggle('hidden'); return }
     if (a === 'crm-set-status') {
       const p = getProject(el.dataset.projectId); if (p) { p.status = el.dataset.status; save(); renderCRMProject(p.id) }; return

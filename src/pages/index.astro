@@ -118,6 +118,9 @@ import '../styles/global.css';
   const collapsed = new Set()
   let hideDoneTasks = false
   let hideDoneSubtasks = false
+  let crmTab = 'clients' // 'clients' | 'projects'
+  let crmPlatformFilter = 'all'
+  let crmStatusFilter = 'all'
   let activeTimer = null  // { projId, stId, taskId, projTitle, stTitle, taskTitle, startedAt }
   let timerInterval = null
   let pendingScrollTaskId = null
@@ -1804,6 +1807,14 @@ import '../styles/global.css';
     document.getElementById('btn-new-project').classList.add('hidden')
   }
 
+  const CRM_PLATFORMS = [
+    { id: 'webflow',    label: 'Webflow',    color: 'text-blue-400 bg-blue-400/15' },
+    { id: 'elementor',  label: 'Elementor',  color: 'text-pink-400 bg-pink-400/15' },
+    { id: 'ai-build',   label: 'AI Build',   color: 'text-purple-400 bg-purple-400/15' },
+    { id: 'custom',     label: 'Custom',     color: 'text-orange-400 bg-orange-400/15' },
+    { id: 'other',      label: 'Other',      color: 'text-white/40 bg-white/8' },
+  ]
+  function crmPlatform(id) { return CRM_PLATFORMS.find(p => p.id === id) }
   function fmtMoney(n) { return n != null && n !== '' ? Number(n).toLocaleString('ru-RU') : '' }
   function fmtDate(d) {
     if (!d) return ''
@@ -1814,41 +1825,95 @@ import '../styles/global.css';
   function renderCRM() {
     crmResetHeader()
     const data = crm()
+    const tabBtn = (id, label) => `<button data-action="crm-tab" data-tab="${id}"
+      class="text-sm px-4 py-1.5 rounded-lg transition-colors font-medium ${crmTab === id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'}">${label}</button>`
+
+    const clientsHTML = () => {
+      if (!data.clients.length) return `<div class="text-center py-20 text-white/20 text-sm">Добавь первого клиента</div>`
+      return `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        ${data.clients.map(cl => {
+          const projs = crmClientProjects(cl.id)
+          const active = projs.filter(p => p.status !== 'done').length
+          const totalPaid = projs.reduce((s, p) => s + (Number(p.paid) || 0), 0)
+          return `<div data-action="crm-open-client" data-client-id="${cl.id}"
+            class="bg-[#282e33] rounded-2xl p-5 cursor-pointer hover:bg-[#2e3540] transition-colors group">
+            <div class="flex items-start justify-between mb-1">
+              <h2 class="font-semibold text-white/90 leading-tight">${esc(cl.name)}</h2>
+              <button data-action="crm-delete-client" data-client-id="${cl.id}"
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 text-xs ml-2 flex-shrink-0">✕</button>
+            </div>
+            ${cl.email ? `<div class="text-xs text-white/35 mb-3 truncate">${esc(cl.email)}</div>` : `<div class="mb-3"></div>`}
+            <div class="flex items-center gap-2 text-xs mb-2">
+              <span class="text-white/40">${projs.length} ${projs.length === 1 ? 'проект' : projs.length >= 2 && projs.length <= 4 ? 'проекта' : 'проектов'}</span>
+              ${active ? `<span class="text-blue-400/80">· ${active} активных</span>` : ''}
+            </div>
+            ${totalPaid > 0 ? `<div class="text-xs text-green-400 font-medium">$${fmtMoney(totalPaid)}</div>` : ''}
+          </div>`
+        }).join('')}
+      </div>`
+    }
+
+    const projectsHTML = () => {
+      const statusLabel = { active: 'Активный', paused: 'Пауза', done: 'Завершён' }
+      const statusColor = { active: 'text-blue-400 bg-blue-400/10', paused: 'text-yellow-400 bg-yellow-400/10', done: 'text-green-400 bg-green-400/10' }
+      let projs = data.projects
+      if (crmPlatformFilter !== 'all') projs = projs.filter(p => p.platform === crmPlatformFilter)
+      if (crmStatusFilter !== 'all') projs = projs.filter(p => (p.status || 'active') === crmStatusFilter)
+
+      const filterBtn = (action, val, cur, label) =>
+        `<button data-action="${action}" data-val="${val}"
+          class="text-xs px-3 py-1 rounded-lg transition-colors ${cur === val ? 'bg-white/15 text-white font-medium' : 'text-white/35 hover:text-white/60 hover:bg-white/8'}">${label}</button>`
+
+      return `
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <div class="flex gap-1 flex-wrap">
+            ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'Все платформы')}
+            ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
+          </div>
+          <div class="w-px h-4 bg-white/10 mx-1 hidden sm:block"></div>
+          <div class="flex gap-1">
+            ${filterBtn('crm-filter-status','all',crmStatusFilter,'Все статусы')}
+            ${filterBtn('crm-filter-status','active',crmStatusFilter,'Активные')}
+            ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Пауза')}
+            ${filterBtn('crm-filter-status','done',crmStatusFilter,'Завершённые')}
+          </div>
+        </div>
+        ${!projs.length ? `<div class="text-center py-16 text-white/20 text-sm">Нет проектов</div>` : `
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${projs.map(p => {
+            const cl = crmClient(p.clientId)
+            const pl = crmPlatform(p.platform)
+            const st = p.status || 'active'
+            return `<div data-action="crm-open-project" data-project-id="${p.id}"
+              class="bg-[#282e33] rounded-2xl p-4 cursor-pointer hover:bg-[#2e3540] transition-colors group flex flex-col gap-2">
+              <div class="flex items-start justify-between gap-2">
+                <h3 class="font-semibold text-white/90 text-sm leading-snug flex-1">${esc(p.title)}</h3>
+                <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${statusColor[st]}">${statusLabel[st]}</span>
+              </div>
+              <div class="text-xs text-white/35">${cl ? esc(cl.name) : ''}</div>
+              <div class="flex items-center gap-2 flex-wrap mt-auto pt-1">
+                ${pl ? `<span class="text-xs px-2 py-0.5 rounded-full ${pl.color}">${pl.label}</span>` : ''}
+                ${p.startDate ? `<span class="text-xs text-white/30">${fmtDate(p.startDate)}${p.endDate ? ' → ' + fmtDate(p.endDate) : ''}</span>` : ''}
+                ${p.paid ? `<span class="text-xs text-green-400 font-medium ml-auto">$${fmtMoney(p.paid)}</span>` : ''}
+              </div>
+            </div>`
+          }).join('')}
+        </div>`}
+      `
+    }
+
     document.getElementById('app').innerHTML = `
       <div class="max-w-4xl mx-auto px-4 py-6">
-        <div class="flex items-center justify-between mb-6">
-          <h1 class="text-xl font-bold">CRM</h1>
-          <button data-action="crm-add-client"
-            class="bg-blue-600 hover:bg-blue-500 transition-colors text-sm px-4 py-2 rounded-xl font-medium">
-            + Клиент
-          </button>
-        </div>
-        ${data.clients.length === 0 ? `
-          <div class="text-center py-20 text-white/20 text-sm">Добавь первого клиента</div>
-        ` : `
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${data.clients.map(cl => {
-              const projs = crmClientProjects(cl.id)
-              const active = projs.filter(p => p.status !== 'done').length
-              const totalPaid = projs.reduce((s, p) => s + (Number(p.paid) || 0), 0)
-              return `<div data-action="crm-open-client" data-client-id="${cl.id}"
-                class="bg-[#282e33] rounded-2xl p-5 cursor-pointer hover:bg-[#2e3540] transition-colors group">
-                <div class="flex items-start justify-between mb-1">
-                  <h2 class="font-semibold text-white/90 leading-tight">${esc(cl.name)}</h2>
-                  <button data-action="crm-delete-client" data-client-id="${cl.id}"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 text-xs ml-2 flex-shrink-0">✕</button>
-                </div>
-                ${cl.email ? `<div class="text-xs text-white/35 mb-3 truncate">${esc(cl.email)}</div>` : `<div class="mb-3"></div>`}
-                <div class="flex items-center gap-2 text-xs mb-2">
-                  <span class="text-white/40">${projs.length} ${projs.length === 1 ? 'проект' : projs.length >= 2 && projs.length <= 4 ? 'проекта' : 'проектов'}</span>
-                  ${active ? `<span class="text-blue-400/80">· ${active} активных</span>` : ''}
-                </div>
-                ${totalPaid > 0 ? `<div class="text-xs text-green-400 font-medium">$${fmtMoney(totalPaid)}</div>` : ''}
-              </div>`
-            }).join('')}
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-1 bg-white/5 rounded-xl p-1">
+            ${tabBtn('clients','Клиенты')}
+            ${tabBtn('projects','Проекты')}
           </div>
-        `}
-        <!-- add client form (hidden) -->
+          ${crmTab === 'clients' ? `<button data-action="crm-add-client"
+            class="bg-blue-600 hover:bg-blue-500 transition-colors text-sm px-4 py-2 rounded-xl font-medium">+ Клиент</button>` : ''}
+        </div>
+        ${crmTab === 'clients' ? clientsHTML() : projectsHTML()}
+        <!-- add client form -->
         <div id="crm-add-client-form" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background:rgba(0,0,0,0.6)">
           <div class="bg-[#1e2429] border border-white/10 rounded-2xl p-6 w-full max-w-sm">
             <h3 class="font-semibold mb-4">Новый клиент</h3>
@@ -1879,12 +1944,13 @@ import '../styles/global.css';
     const statusColor = { active: 'text-blue-400 bg-blue-400/10', paused: 'text-yellow-400 bg-yellow-400/10', done: 'text-green-400 bg-green-400/10' }
 
     const projCard = p => {
-      const pct = 0 // budget removed
+      const pl = crmPlatform(p.platform)
       return `<div data-action="crm-open-project" data-project-id="${p.id}"
         class="bg-[#282e33] rounded-2xl p-4 cursor-pointer hover:bg-[#2e3540] transition-colors group">
         <div class="flex items-start justify-between mb-2">
           <h3 class="font-medium text-white/90 text-sm leading-snug flex-1">${esc(p.title)}</h3>
           <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+            ${pl ? `<span class="text-xs px-2 py-0.5 rounded-full ${pl.color}">${pl.label}</span>` : ''}
             <span class="text-xs px-2 py-0.5 rounded-full ${statusColor[p.status] || statusColor.active}">${statusLabel[p.status] || 'Активный'}</span>
             <button data-action="crm-delete-project" data-project-id="${p.id}"
               class="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 text-xs">✕</button>
@@ -1992,6 +2058,14 @@ import '../styles/global.css';
           </div>
         </div>
         <div class="bg-[#282e33] rounded-2xl px-4 mb-4">
+          ${fieldRow('Платформа',
+            `<div class="flex flex-wrap gap-2">
+              ${CRM_PLATFORMS.map(pl => `
+                <button data-action="crm-set-platform" data-project-id="${p.id}" data-platform="${pl.id}"
+                  class="text-xs px-2.5 py-1 rounded-full transition-all ${p.platform === pl.id ? pl.color + ' ring-1 ring-white/20' : 'text-white/30 bg-white/5 hover:bg-white/10'}">
+                  ${pl.label}
+                </button>`).join('')}
+            </div>`)}
           ${fieldRow('Период',
             `<div class="flex items-center gap-2">
               <input type="date" value="${p.startDate||''}" data-action="crm-update-field" data-field="startDate" data-project-id="${p.id}"
@@ -2921,6 +2995,13 @@ import '../styles/global.css';
       const cid = el.dataset.clientId
       crm().projects.push({ id: uid(), clientId: cid, title, status: 'active', startDate: null, endDate: null, budget: '', paid: '', timeHours: '', links: [], notes: '', createdAt: Date.now() })
       save(); renderCRMClient(cid); return
+    }
+    if (a === 'crm-tab') { crmTab = el.dataset.tab; renderCRM(); return }
+    if (a === 'crm-filter-platform') { crmPlatformFilter = el.dataset.platform; renderCRM(); return }
+    if (a === 'crm-filter-status') { crmStatusFilter = el.dataset.status; renderCRM(); return }
+    if (a === 'crm-set-platform') {
+      const p = crmProject(el.dataset.projectId); if (!p) return
+      p.platform = el.dataset.platform; save(); renderCRMProject(p.id); return
     }
     if (a === 'crm-delete-project') {
       e.stopPropagation()

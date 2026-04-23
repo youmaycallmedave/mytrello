@@ -2127,21 +2127,18 @@ import '../styles/global.css';
                   class="w-20 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
                 <span class="text-xs text-white/25">ч</span>
               </div>
-              ${p.estHours && p.timeHours ? (() => {
+              <span id="crm-hours-diff" class="${(() => { const diff = p.estHours && p.timeHours ? Number(p.estHours) - Number(p.timeHours) : null; return diff !== null && diff > 0 ? 'text-blue-400/60' : 'text-orange-400/70' })()} text-xs">${(() => {
+                if (!p.estHours || !p.timeHours) return ''
                 const diff = Number(p.estHours) - Number(p.timeHours)
-                return diff > 0
-                  ? `<span class="text-blue-400/60 text-xs">−${diff}ч к оценке</span>`
-                  : diff < 0
-                  ? `<span class="text-orange-400/70 text-xs">+${Math.abs(diff)}ч сверх оценки</span>`
-                  : ''
-              })() : ''}
+                return diff > 0 ? `−${diff}ч к оценке` : diff < 0 ? `+${Math.abs(diff)}ч сверх оценки` : ''
+              })()}</span>
             </div>`)}
-          ${p.timeHours && p.paid ? fieldRow('Рейт',
+          ${fieldRow('Рейт',
             `<div class="flex items-center gap-3">
-              <span class="text-xl font-bold text-green-400">$${fmtMoney(Math.round(Number(p.paid)/Number(p.timeHours)))}</span>
+              <span id="crm-rate-display" class="text-xl font-bold text-green-400">${p.timeHours && p.paid ? '$' + fmtMoney(Math.round(Number(p.paid)/Number(p.timeHours))) : '—'}</span>
               <span class="text-sm text-white/30">/ час</span>
-              <span class="text-xs text-white/20">(${fmtMoney(p.paid)} ÷ ${p.timeHours}ч)</span>
-            </div>`) : ''}
+              ${p.timeHours && p.paid ? `<span class="text-xs text-white/20">(${fmtMoney(p.paid)} ÷ ${p.timeHours}ч)</span>` : ''}
+            </div>`)}
           ${fieldRow('Ссылки',
             `<div class="flex flex-col gap-2">
               ${(p.crmLinks||[]).map((lnk,i) => `
@@ -3236,6 +3233,27 @@ import '../styles/global.css';
       save()
       if (inp.dataset.field === 'paid' || inp.dataset.field === 'crmClientId') renderCRMProject(p.id)
       return
+    }
+  })
+  // live rate recalc while typing hours/paid
+  document.addEventListener('input', e => {
+    const inp = e.target.closest('input[data-action="crm-update-field"]')
+    if (!inp) return
+    const field = inp.dataset.field
+    if (field !== 'timeHours' && field !== 'paid' && field !== 'estHours') return
+    const p = getProject(inp.dataset.projectId)
+    if (!p) return
+    p[field] = inp.value
+    const rateEl = document.getElementById('crm-rate-display')
+    const diffEl = document.getElementById('crm-hours-diff')
+    if (rateEl) {
+      const rate = p.timeHours && p.paid ? Math.round(Number(p.paid) / Number(p.timeHours)) : null
+      rateEl.textContent = rate ? `$${rate.toLocaleString('ru-RU')}` : '—'
+    }
+    if (diffEl && p.estHours && p.timeHours) {
+      const diff = Number(p.estHours) - Number(p.timeHours)
+      diffEl.textContent = diff > 0 ? `−${diff}ч к оценке` : diff < 0 ? `+${Math.abs(diff)}ч сверх оценки` : ''
+      diffEl.className = diff > 0 ? 'text-blue-400/60 text-xs' : 'text-orange-400/70 text-xs'
     }
   })
   document.addEventListener('input', e => {

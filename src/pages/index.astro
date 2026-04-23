@@ -11,7 +11,7 @@ import '../styles/global.css';
 </head>
 <body class="bg-[#1d2125] text-white min-h-screen font-sans antialiased">
 
-  <header class="sticky top-0 z-40 bg-[#1d2125]/95 backdrop-blur border-b border-white/5 h-12 flex items-center px-4 gap-3">
+  <header class="sticky top-0 z-40 bg-[#1d2125]/95 backdrop-blur border-b border-white/5 h-12 flex items-center px-4 gap-3 relative">
     <button id="btn-home" class="flex items-center gap-2 hover:opacity-70 transition-opacity flex-shrink-0">
       <svg class="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
         <path d="M4 5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm9 0a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2V5zm0 9a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-5zM4 14a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5z"/>
@@ -29,40 +29,47 @@ import '../styles/global.css';
       <span id="header-timer-display" class="font-mono font-medium tabular-nums text-red-300"></span>
       <button id="btn-stop-timer" class="text-red-400/70 hover:text-red-300 transition-colors leading-none ml-0.5">⏹</button>
     </div>
-    <div class="ml-auto flex items-center gap-2 flex-shrink-0">
-      <button id="btn-crm"
-        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
-        CRM
-      </button>
-      <button id="btn-design-gym"
-        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
-        Дизайн
-      </button>
-      <button id="btn-journal"
-        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
-        Дневник
-      </button>
-      <button id="btn-history"
-        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
-        История
-      </button>
-      <button id="btn-backup"
-        class="hidden text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-md hover:bg-white/5"
-        title="Скачать бэкап">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    <div class="ml-auto flex items-center gap-2">
+      <!-- hamburger: mobile only -->
+      <button id="btn-mobile-menu" class="sm:hidden text-white/40 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
       </button>
-      <!-- coins hidden -->
-      <span id="header-user-email" class="hidden text-xs text-white/30 max-w-[160px] truncate"></span>
-      <button id="btn-new-project"
-        class="hidden text-xs bg-blue-600 hover:bg-blue-500 transition-colors px-3 py-1.5 rounded-md font-medium">
-        + Новый проект
-      </button>
-      <button id="btn-logout"
-        class="hidden text-xs text-white/30 hover:text-white/60 transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
-        Выйти
-      </button>
+      <!-- nav items: dropdown on mobile, inline on sm+ -->
+      <div id="nav-items" class="hidden sm:flex items-center gap-2 flex-col sm:flex-row flex-shrink-0
+        absolute sm:static top-full right-0
+        bg-[#1e2429] sm:bg-transparent border border-white/10 sm:border-0
+        rounded-bl-2xl sm:rounded-none shadow-xl sm:shadow-none
+        p-4 sm:p-0 z-50 min-w-[190px] sm:min-w-0">
+        <button id="btn-crm"
+          class="hidden w-full sm:w-auto text-left text-sm sm:text-xs text-white/50 hover:text-white/80 transition-colors px-2 py-2 sm:py-1.5 rounded-md hover:bg-white/5">
+          CRM
+        </button>
+        <button id="btn-design-gym"
+          class="hidden w-full sm:w-auto text-left text-sm sm:text-xs text-white/50 hover:text-white/80 transition-colors px-2 py-2 sm:py-1.5 rounded-md hover:bg-white/5">
+          Дизайн
+        </button>
+        <button id="btn-journal"
+          class="hidden w-full sm:w-auto text-left text-sm sm:text-xs text-white/50 hover:text-white/80 transition-colors px-2 py-2 sm:py-1.5 rounded-md hover:bg-white/5">
+          Дневник
+        </button>
+        <button id="btn-history"
+          class="hidden w-full sm:w-auto text-left text-sm sm:text-xs text-white/50 hover:text-white/80 transition-colors px-2 py-2 sm:py-1.5 rounded-md hover:bg-white/5">
+          История
+        </button>
+        <button id="btn-backup" class="hidden" title="Скачать бэкап"></button>
+        <!-- coins hidden -->
+        <span id="header-user-email" class="hidden text-xs text-white/30 px-2 truncate max-w-[180px] sm:max-w-[160px]"></span>
+        <button id="btn-new-project"
+          class="hidden w-full sm:w-auto text-center text-sm sm:text-xs bg-blue-600 hover:bg-blue-500 transition-colors px-3 py-2 sm:py-1.5 rounded-md font-medium">
+          + Новый проект
+        </button>
+        <button id="btn-logout"
+          class="hidden w-full sm:w-auto text-left text-sm sm:text-xs text-white/50 hover:text-white/80 transition-colors px-2 py-2 sm:py-1.5 rounded-md hover:bg-white/5">
+          Выйти
+        </button>
+      </div>
     </div>
   </header>
 
@@ -497,6 +504,7 @@ import '../styles/global.css';
   }
 
   function backupBannerHTML() {
+    return ``
     const days = daysSinceBackup()
     if (days < 7) return ''
     const msg = days === 0 ? 'Ты ещё не делал бэкап' : `Последний бэкап ${days} дн назад`
@@ -3354,6 +3362,17 @@ import '../styles/global.css';
       if (el) el.textContent = elapsedSince(proj.updatedAt)
     }
   }, 60000)
+
+  // ─── MOBILE MENU ─────────────────────────────────────────────────────────────
+  document.getElementById('btn-mobile-menu')?.addEventListener('click', e => {
+    e.stopPropagation()
+    document.getElementById('nav-items')?.classList.toggle('hidden')
+  })
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#nav-items') && !e.target.closest('#btn-mobile-menu')) {
+      document.getElementById('nav-items')?.classList.add('hidden')
+    }
+  })
 
   // ─── LOGOUT ──────────────────────────────────────────────────────────────────
   document.getElementById('btn-logout').addEventListener('click', async () => {

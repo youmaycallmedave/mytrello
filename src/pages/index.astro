@@ -778,77 +778,132 @@ import '../styles/global.css';
     document.getElementById('header-breadcrumb').classList.add('hidden')
     document.getElementById('btn-new-project').classList.add('hidden')
     const app = document.getElementById('app')
+
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const weekAgoStr = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)
+
     app.innerHTML = `
       <div class="px-4 py-6 max-w-5xl mx-auto">
         <div class="flex items-center gap-3 mb-5">
-          <h1 class="text-lg font-bold text-white/70 flex-1">История времени</h1>
-          <select id="history-filter" class="bg-[#282e33] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/60 focus:outline-none">
-            <option value="">Все проекты</option>
+          <button data-action="nav-home" class="text-white/40 hover:text-white/70 transition-colors text-sm">← Back</button>
+          <h1 class="text-lg font-bold text-white/70 flex-1">Time history</h1>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-5">
+          <div class="flex items-center gap-2 bg-[#282e33] border border-white/8 rounded-xl px-3 py-2 flex-1 min-w-[200px]">
+            <span class="text-xs text-white/30">From</span>
+            <input id="history-from" type="date" value="${weekAgoStr}"
+              class="bg-transparent text-sm text-white/70 focus:outline-none flex-1 min-w-0">
+            <span class="text-xs text-white/30">To</span>
+            <input id="history-to" type="date" value="${todayStr}"
+              class="bg-transparent text-sm text-white/70 focus:outline-none flex-1 min-w-0">
+          </div>
+          <select id="history-filter" class="bg-[#282e33] border border-white/8 rounded-xl px-3 py-2 text-sm text-white/60 focus:outline-none">
+            <option value="">All</option>
+            <option value="__distraction__">⏸ Distractions</option>
           </select>
         </div>
-        <div id="history-content" class="text-white/30 text-sm text-center py-12">Загрузка...</div>
+        <div id="history-content" class="text-white/30 text-sm text-center py-12">Loading...</div>
       </div>`
+
     if (!currentSession) return
-    const boardProjIds = projects().map(p => p.id)
-    let query = sb.from('time_entries').select('*').eq('user_id', currentSession.user.id)
-    if (boardProjIds.length) query = query.in('project_id', boardProjIds)
-    else query = query.eq('project_id', 'none')
-    const { data, error } = await query.order('started_at', { ascending: false }).limit(500)
-    if (error) { document.getElementById('history-content').textContent = 'Ошибка загрузки'; return }
-    if (!data?.length) {
-      document.getElementById('history-content').innerHTML = `
-        <div class="text-center py-12">
-          <div class="text-4xl mb-3">⏱</div>
-          <p class="text-white/30 text-sm">Нет записей. Запусти таймер на таске чтобы начать.</p>
-        </div>`
-      return
+
+    let allData = []
+
+    async function fetchHistory() {
+      const fromVal = document.getElementById('history-from').value
+      const toVal = document.getElementById('history-to').value
+      const fromISO = fromVal ? new Date(fromVal).toISOString() : null
+      const toISO = toVal ? new Date(toVal + 'T23:59:59').toISOString() : null
+
+      document.getElementById('history-content').textContent = 'Loading...'
+
+      const boardProjIds = projects().map(p => p.id)
+      const queries = []
+      // work entries
+      if (boardProjIds.length) {
+        let q = sb.from('time_entries').select('*').eq('user_id', currentSession.user.id).in('project_id', boardProjIds)
+        if (fromISO) q = q.gte('started_at', fromISO)
+        if (toISO) q = q.lte('started_at', toISO)
+        queries.push(q.order('started_at', { ascending: false }).limit(500))
+      } else {
+        queries.push(Promise.resolve({ data: [] }))
+      }
+      // distraction entries
+      let dq = sb.from('time_entries').select('*').eq('user_id', currentSession.user.id).eq('project_id', '__distraction__')
+      if (fromISO) dq = dq.gte('started_at', fromISO)
+      if (toISO) dq = dq.lte('started_at', toISO)
+      queries.push(dq.order('started_at', { ascending: false }).limit(500))
+
+      const [workRes, distrRes] = await Promise.all(queries)
+      allData = [...(workRes.data || []), ...(distrRes.data || [])]
+      allData.sort((a, b) => new Date(b.started_at) - new Date(a.started_at))
+
+      // populate project filter options (keep existing ones, re-add)
+      const filterEl = document.getElementById('history-filter')
+      const existingVals = new Set([...(filterEl.options)].map(o => o.value))
+      const seenProjs = new Map(allData.filter(e => e.project_id !== '__distraction__').map(e => [e.project_id, e.project_title]))
+      seenProjs.forEach((title, id) => {
+        if (!existingVals.has(id)) {
+          const opt = document.createElement('option')
+          opt.value = id; opt.textContent = title
+          filterEl.appendChild(opt)
+        }
+      })
+
+      renderEntries(filterEl.value)
     }
-    const projects = [...new Map(data.map(e => [e.project_id, e.project_title])).entries()]
-    const filterEl = document.getElementById('history-filter')
-    projects.forEach(([id, title]) => {
-      const opt = document.createElement('option')
-      opt.value = id; opt.textContent = title
-      filterEl.appendChild(opt)
-    })
-    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
-    const dayNames = ['вс','пн','вт','ср','чт','пт','сб']
+
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
     function renderEntries(filterProjId) {
-      const filtered = filterProjId ? data.filter(e => e.project_id === filterProjId) : data
+      const filtered = filterProjId ? allData.filter(e => e.project_id === filterProjId) : allData
+      const content = document.getElementById('history-content')
       if (!filtered.length) {
-        document.getElementById('history-content').innerHTML = `<p class="text-center py-8 text-white/25">Нет записей по этому проекту</p>`
+        content.innerHTML = `
+          <div class="text-center py-12">
+            <div class="text-4xl mb-3">⏱</div>
+            <p class="text-white/30 text-sm">No entries for this period.</p>
+          </div>`
         return
       }
       const byDay = new Map()
       for (const e of filtered) {
         const d = new Date(e.started_at)
-        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+        const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
         if (!byDay.has(key)) byDay.set(key, { date: d, entries: [] })
         byDay.get(key).entries.push(e)
       }
       const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0)
       let html = ''
       for (const [, { date, entries }] of byDay) {
-        const totalSecs = entries.reduce((s, e) => s + e.duration_seconds, 0)
+        const workSecs = entries.filter(e => e.project_id !== '__distraction__').reduce((s, e) => s + e.duration_seconds, 0)
+        const distrSecs = entries.filter(e => e.project_id === '__distraction__').reduce((s, e) => s + e.duration_seconds, 0)
         const dMid = new Date(date); dMid.setHours(0,0,0,0)
         const diff = Math.round((todayMidnight - dMid) / 86400000)
-        const dateLabel = diff === 0 ? 'Сегодня' : diff === 1 ? 'Вчера' : `${dayNames[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`
+        const dateLabel = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : `${dayNames[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`
         html += `
           <div class="mb-6">
-            <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center justify-between mb-2 px-1">
               <span class="text-sm font-semibold text-white/60">${dateLabel}</span>
-              <span class="text-sm font-mono font-medium text-white/40">${fmtDuration(totalSecs)}</span>
+              <div class="flex items-center gap-3">
+                ${distrSecs ? `<span class="text-xs text-orange-400/60">⏸ ${fmtDuration(distrSecs)}</span>` : ''}
+                ${workSecs ? `<span class="text-xs text-blue-400/60">🔵 ${fmtDuration(workSecs)}</span>` : ''}
+              </div>
             </div>
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-1.5">
               ${entries.map(e => {
                 const start = new Date(e.started_at)
                 const end = new Date(e.ended_at)
-                return `<div class="flex items-center gap-3 bg-[#282e33] rounded-lg px-3 py-2.5">
+                const isDistr = e.project_id === '__distraction__'
+                const cat = isDistr ? DISTRACTION_CATS.find(c => c.id === e.task_id) : null
+                return `<div class="flex items-center gap-3 bg-[#282e33] rounded-lg px-3 py-2.5 ${isDistr ? 'border-l-2 border-orange-500/40' : ''}">
                   <div class="flex-1 min-w-0">
-                    <div class="text-sm text-white/80 truncate">${esc(e.task_title)}</div>
-                    <div class="text-xs text-white/35 truncate">${esc(e.project_title)}${e.subtask_title ? ' › ' + esc(e.subtask_title) : ''}</div>
+                    <div class="text-sm text-white/80 truncate">${cat ? cat.emoji + ' ' : ''}${esc(e.task_title)}</div>
+                    <div class="text-xs text-white/35 truncate">${isDistr ? 'Distraction' : esc(e.project_title)}${e.subtask_title ? ' › ' + esc(e.subtask_title) : ''}</div>
                   </div>
                   <div class="text-right flex-shrink-0">
-                    <div class="text-sm font-mono font-medium text-white/70">${fmtDuration(e.duration_seconds)}</div>
+                    <div class="text-sm font-mono font-medium ${isDistr ? 'text-orange-400/60' : 'text-white/70'}">${fmtDuration(e.duration_seconds)}</div>
                     <div class="text-xs text-white/30">${fmtHHMM(start)}–${fmtHHMM(end)}</div>
                   </div>
                 </div>`
@@ -856,10 +911,14 @@ import '../styles/global.css';
             </div>
           </div>`
       }
-      document.getElementById('history-content').innerHTML = html
+      content.innerHTML = html
     }
-    renderEntries('')
-    filterEl.addEventListener('change', () => renderEntries(filterEl.value))
+
+    await fetchHistory()
+
+    document.getElementById('history-from').addEventListener('change', fetchHistory)
+    document.getElementById('history-to').addEventListener('change', fetchHistory)
+    document.getElementById('history-filter').addEventListener('change', () => renderEntries(document.getElementById('history-filter').value))
   }
 
   // ─── JOURNAL ─────────────────────────────────────────────────────────────────

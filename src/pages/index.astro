@@ -2114,12 +2114,29 @@ import '../styles/global.css';
                 class="w-36 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
               ${p.paid ? `<span class="text-green-400 text-sm font-medium ml-1">$${fmtMoney(p.paid)}</span>` : ''}
             </div>`)}
-          ${fieldRow('Время',
-            `<div class="flex items-center gap-2">
-              <input type="number" step="0.5" value="${p.timeHours||''}" placeholder="0" data-action="crm-update-field" data-field="timeHours" data-project-id="${p.id}"
-                class="w-24 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
-              <span class="text-white/40 text-xs">часов</span>
-              ${p.timeHours && p.paid ? `<span class="text-white/25 text-xs ml-2">· $${fmtMoney(Math.round(Number(p.paid)/Number(p.timeHours)))}/ч</span>` : ''}
+          ${fieldRow('Часы',
+            `<div class="flex items-center gap-4 flex-wrap">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-white/25">оценка</span>
+                <input type="number" step="0.5" value="${p.estHours||''}" placeholder="0" data-action="crm-update-field" data-field="estHours" data-project-id="${p.id}"
+                  class="w-20 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
+                <span class="text-xs text-white/25">ч</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-white/25">факт</span>
+                <input type="number" step="0.5" value="${p.timeHours||''}" placeholder="0" data-action="crm-update-field" data-field="timeHours" data-project-id="${p.id}"
+                  class="w-20 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
+                <span class="text-xs text-white/25">ч</span>
+              </div>
+              ${p.timeHours && p.paid ? `<span class="text-green-400/70 text-xs font-medium">$${fmtMoney(Math.round(Number(p.paid)/Number(p.timeHours)))}/ч</span>` : ''}
+              ${p.estHours && p.timeHours ? (() => {
+                const diff = Number(p.estHours) - Number(p.timeHours)
+                return diff > 0
+                  ? `<span class="text-blue-400/60 text-xs">сэкономлено ${diff}ч</span>`
+                  : diff < 0
+                  ? `<span class="text-orange-400/70 text-xs">перерасход ${Math.abs(diff)}ч</span>`
+                  : ''
+              })() : ''}
             </div>`)}
           ${fieldRow('Ссылки',
             `<div class="flex flex-col gap-2">

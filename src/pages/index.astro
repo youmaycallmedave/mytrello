@@ -2085,6 +2085,12 @@ import '../styles/global.css';
           </div>
         </div>
         <div class="bg-[#282e33] rounded-2xl px-4 mb-4">
+          ${fieldRow('Клиент',
+            `<select data-action="crm-update-field" data-field="crmClientId" data-project-id="${p.id}"
+              class="bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-blue-500 text-white/75">
+              <option value="">— не выбран —</option>
+              ${crm().clients.map(c => `<option value="${c.id}" ${p.crmClientId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+            </select>`)}
           ${fieldRow('Платформа',
             `<div class="flex flex-wrap gap-2">
               ${CRM_PLATFORMS.map(pl => `
@@ -3207,7 +3213,7 @@ import '../styles/global.css';
       if (!p) return
       p[inp.dataset.field] = inp.value
       save()
-      if (inp.dataset.field === 'paid') renderCRMProject(p.id)
+      if (inp.dataset.field === 'paid' || inp.dataset.field === 'crmClientId') renderCRMProject(p.id)
       return
     }
   })

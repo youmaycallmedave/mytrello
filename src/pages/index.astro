@@ -2112,7 +2112,6 @@ import '../styles/global.css';
               <span class="text-white/40 text-xs">$</span>
               <input type="number" value="${p.paid||''}" placeholder="0" data-action="crm-update-field" data-field="paid" data-project-id="${p.id}"
                 class="w-36 bg-[#1d2125] border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"/>
-              ${p.paid ? `<span class="text-green-400 text-sm font-medium ml-1">$${fmtMoney(p.paid)}</span>` : ''}
             </div>`)}
           ${fieldRow('Часы',
             `<div class="flex items-center gap-4 flex-wrap">

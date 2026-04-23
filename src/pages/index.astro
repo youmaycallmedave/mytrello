@@ -128,6 +128,7 @@ import '../styles/global.css';
   let crmTab = 'clients' // 'clients' | 'projects'
   let crmPlatformFilter = 'all'
   let crmStatusFilter = 'all'
+  let crmClientFilter = 'all'
   let activeTimer = null  // { projId, stId, taskId, projTitle, stTitle, taskTitle, startedAt }
   let timerInterval = null
   let pendingScrollTaskId = null
@@ -1893,6 +1894,8 @@ import '../styles/global.css';
       let projs = allTaskProjects()
       if (crmPlatformFilter !== 'all') projs = projs.filter(p => p.platform === crmPlatformFilter)
       if (crmStatusFilter !== 'all') projs = projs.filter(p => toCrmStatus(p.status) === crmStatusFilter)
+      if (crmClientFilter === 'none') projs = projs.filter(p => !p.crmClientId)
+      else if (crmClientFilter !== 'all') projs = projs.filter(p => p.crmClientId === crmClientFilter)
 
       const filterBtn = (action, val, cur, label) =>
         `<button data-action="${action}" data-val="${val}"
@@ -1900,15 +1903,20 @@ import '../styles/global.css';
 
       return `
         <div class="flex flex-col gap-2 mb-5">
-          <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5">
+          <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap">
             ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'All')}
             ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
           </div>
-          <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5">
+          <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap">
             ${filterBtn('crm-filter-status','all',crmStatusFilter,'All')}
             ${filterBtn('crm-filter-status','active',crmStatusFilter,'Active')}
             ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Pause')}
             ${filterBtn('crm-filter-status','done',crmStatusFilter,'Done')}
+          </div>
+          <div class="flex items-center gap-1 border border-white/8 rounded-xl px-2 py-1.5 flex-wrap">
+            ${filterBtn('crm-filter-client','all',crmClientFilter,'All')}
+            ${crm().clients.map(c => filterBtn('crm-filter-client', c.id, crmClientFilter, c.name)).join('')}
+            ${filterBtn('crm-filter-client','none',crmClientFilter,'No client')}
           </div>
         </div>
         ${!projs.length ? `<div class="text-center py-16 text-white/20 text-sm">Нет проектов</div>` : `
@@ -3098,6 +3106,7 @@ import '../styles/global.css';
     if (a === 'crm-tab') { crmTab = el.dataset.tab; renderCRM(); return }
     if (a === 'crm-filter-platform') { crmPlatformFilter = el.dataset.val; renderCRM(); return }
     if (a === 'crm-filter-status') { crmStatusFilter = el.dataset.val; renderCRM(); return }
+    if (a === 'crm-filter-client') { crmClientFilter = el.dataset.val; renderCRM(); return }
     if (a === 'crm-set-platform') {
       const p = crmProject(el.dataset.projectId); if (!p) return
       p.platform = el.dataset.platform; save(); renderCRMProject(p.id); return

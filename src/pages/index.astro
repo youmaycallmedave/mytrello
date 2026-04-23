@@ -1865,18 +1865,14 @@ import '../styles/global.css';
           class="text-xs px-3 py-1 rounded-lg transition-colors ${cur === val ? 'bg-white/15 text-white font-medium' : 'text-white/35 hover:text-white/60 hover:bg-white/8'}">${label}</button>`
 
       return `
-        <div class="flex flex-wrap items-center gap-2 mb-4">
-          <div class="flex gap-1 flex-wrap">
-            ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'Все платформы')}
-            ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
-          </div>
-          <div class="w-px h-4 bg-white/10 mx-1 hidden sm:block"></div>
-          <div class="flex gap-1">
-            ${filterBtn('crm-filter-status','all',crmStatusFilter,'Все статусы')}
-            ${filterBtn('crm-filter-status','active',crmStatusFilter,'Активные')}
-            ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Пауза')}
-            ${filterBtn('crm-filter-status','done',crmStatusFilter,'Завершённые')}
-          </div>
+        <div class="flex items-center gap-1 flex-wrap mb-4">
+          ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'Все платформы')}
+          ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
+          <div class="w-px h-4 bg-white/10 mx-1"></div>
+          ${filterBtn('crm-filter-status','all',crmStatusFilter,'Все статусы')}
+          ${filterBtn('crm-filter-status','active',crmStatusFilter,'Активные')}
+          ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Пауза')}
+          ${filterBtn('crm-filter-status','done',crmStatusFilter,'Завершённые')}
         </div>
         ${!projs.length ? `<div class="text-center py-16 text-white/20 text-sm">Нет проектов</div>` : `
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2997,8 +2993,8 @@ import '../styles/global.css';
       save(); renderCRMClient(cid); return
     }
     if (a === 'crm-tab') { crmTab = el.dataset.tab; renderCRM(); return }
-    if (a === 'crm-filter-platform') { crmPlatformFilter = el.dataset.platform; renderCRM(); return }
-    if (a === 'crm-filter-status') { crmStatusFilter = el.dataset.status; renderCRM(); return }
+    if (a === 'crm-filter-platform') { crmPlatformFilter = el.dataset.val; renderCRM(); return }
+    if (a === 'crm-filter-status') { crmStatusFilter = el.dataset.val; renderCRM(); return }
     if (a === 'crm-set-platform') {
       const p = crmProject(el.dataset.projectId); if (!p) return
       p.platform = el.dataset.platform; save(); renderCRMProject(p.id); return

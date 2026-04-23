@@ -1808,11 +1808,9 @@ import '../styles/global.css';
   }
 
   const CRM_PLATFORMS = [
-    { id: 'webflow',    label: 'Webflow',    color: 'text-blue-400 bg-blue-400/15' },
-    { id: 'elementor',  label: 'Elementor',  color: 'text-pink-400 bg-pink-400/15' },
-    { id: 'ai-build',   label: 'AI Build',   color: 'text-purple-400 bg-purple-400/15' },
-    { id: 'custom',     label: 'Custom',     color: 'text-orange-400 bg-orange-400/15' },
-    { id: 'other',      label: 'Other',      color: 'text-white/40 bg-white/8' },
+    { id: 'webflow',   label: 'Webflow',   color: 'text-blue-400 bg-blue-400/15' },
+    { id: 'elementor', label: 'Elementor', color: 'text-pink-400 bg-pink-400/15' },
+    { id: 'other',     label: 'Other',     color: 'text-white/40 bg-white/8' },
   ]
   function crmPlatform(id) { return CRM_PLATFORMS.find(p => p.id === id) }
   function fmtMoney(n) { return n != null && n !== '' ? Number(n).toLocaleString('ru-RU') : '' }
@@ -1865,14 +1863,17 @@ import '../styles/global.css';
           class="text-xs px-3 py-1 rounded-lg transition-colors ${cur === val ? 'bg-white/15 text-white font-medium' : 'text-white/35 hover:text-white/60 hover:bg-white/8'}">${label}</button>`
 
       return `
-        <div class="flex items-center gap-1 flex-wrap mb-4">
-          ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'Все платформы')}
-          ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
-          <div class="w-px h-4 bg-white/10 mx-1"></div>
-          ${filterBtn('crm-filter-status','all',crmStatusFilter,'Все статусы')}
-          ${filterBtn('crm-filter-status','active',crmStatusFilter,'Активные')}
-          ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Пауза')}
-          ${filterBtn('crm-filter-status','done',crmStatusFilter,'Завершённые')}
+        <div class="flex flex-col gap-1 mb-4">
+          <div class="flex items-center gap-1">
+            ${filterBtn('crm-filter-platform','all',crmPlatformFilter,'Все платформы')}
+            ${CRM_PLATFORMS.map(pl => filterBtn('crm-filter-platform', pl.id, crmPlatformFilter, pl.label)).join('')}
+          </div>
+          <div class="flex items-center gap-1">
+            ${filterBtn('crm-filter-status','all',crmStatusFilter,'Все статусы')}
+            ${filterBtn('crm-filter-status','active',crmStatusFilter,'Активные')}
+            ${filterBtn('crm-filter-status','paused',crmStatusFilter,'Пауза')}
+            ${filterBtn('crm-filter-status','done',crmStatusFilter,'Завершённые')}
+          </div>
         </div>
         ${!projs.length ? `<div class="text-center py-16 text-white/20 text-sm">Нет проектов</div>` : `
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

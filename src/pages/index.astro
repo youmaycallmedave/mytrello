@@ -3084,7 +3084,7 @@ import '../styles/global.css';
       for (const b of appData.boards) b.projects = b.projects.filter(x => x.id !== pid)
       save(); cid ? renderCRMClient(cid) : renderCRM(); return
     }
-    if (a === 'crm-open-tasks') { go('p-' + el.dataset.projectId); return }
+    if (a === 'crm-open-tasks') { go('p/' + el.dataset.projectId); return }
     if (a === 'crm-toggle-status-menu') { document.getElementById('crm-status-menu')?.classList.toggle('hidden'); return }
     if (a === 'crm-set-status') {
       const p = getProject(el.dataset.projectId); if (p) { p.status = el.dataset.status; save(); renderCRMProject(p.id) }; return

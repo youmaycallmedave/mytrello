@@ -1399,7 +1399,7 @@ import '../styles/global.css';
 
   // ─── PROGRESS ────────────────────────────────────────────────────────────────
   function projectProgress(proj) {
-    const tasks = proj.subtasks.flatMap(s => s.tasks)
+    const tasks = (proj.subtasks || []).flatMap(s => s.tasks || [])
     if (!tasks.length) return { done: 0, total: 0, pct: 0 }
     const done = tasks.filter(t => t.done).length
     return { done, total: tasks.length, pct: Math.round(done / tasks.length * 100) }

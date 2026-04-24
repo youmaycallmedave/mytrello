@@ -3,6 +3,12 @@ export const prerender = false
 import type { APIRoute } from 'astro'
 import { createClient } from '@supabase/supabase-js'
 
+export const GET: APIRoute = async () => {
+  return new Response(JSON.stringify({ ok: true, service: 'telegram-webhook' }), {
+    headers: { 'Content-Type': 'application/json' }
+  })
+}
+
 const TG_TOKEN = import.meta.env.TELEGRAM_BOT_TOKEN
 const TG_CHAT  = import.meta.env.TELEGRAM_CHAT_ID
 const TELEGRAM_BOARD_NAME = '📱 Telegram'

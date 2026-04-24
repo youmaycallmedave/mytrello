@@ -147,6 +147,16 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('ok')
   }
 
+  if (text === '/journal') {
+    await tgApi('sendMessage', {
+      chat_id: chatId,
+      text: '📔 What happened today? Write anything:',
+      parse_mode: 'HTML',
+      reply_markup: { force_reply: true, selective: true }
+    })
+    return new Response('ok')
+  }
+
   if (text.startsWith('/')) return new Response('ok')
 
   const { data: rows } = await sb.from('projects_data').select('id, data').limit(1)
@@ -155,6 +165,24 @@ export const POST: APIRoute = async ({ request }) => {
   if (!appData) { await sendMessage(chatId, '❌ No data found'); return new Response('ok') }
 
   const boards: any[] = appData.boards || []
+
+  // Reply to journal prompt → save to journal for today
+  const isJournal = msg.reply_to_message?.text === '📔 What happened today? Write anything:'
+  if (isJournal) {
+    if (!appData.journal) appData.journal = []
+    const now = new Date()
+    const dateKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+    const existing = appData.journal.find((e: any) => e.date === dateKey)
+    if (existing) {
+      existing.content = existing.content ? existing.content + '\n\n' + text : text
+      existing.updatedAt = Date.now()
+    } else {
+      appData.journal.push({ id: Math.random().toString(36).slice(2) + Date.now().toString(36), date: dateKey, content: text, createdAt: Date.now() })
+    }
+    await sb.from('projects_data').update({ data: appData }).eq('id', row.id)
+    await sendMessage(chatId, `📔 <b>Journal saved for ${dateKey}</b>\n\n<i>${text.slice(0, 200)}${text.length > 200 ? '...' : ''}</i>`)
+    return new Response('ok')
+  }
 
   // Reply to bot's "Enter task name:" → Quick Task (status: quicktg), goes to active board
   const isQuickTask = msg.reply_to_message?.text === '📝 Enter task name:'

@@ -123,6 +123,16 @@ export const POST: APIRoute = async ({ request }) => {
   const text = msg.text.trim()
 
   // /start or /help
+  if (text === '/newtask') {
+    await tgApi('sendMessage', {
+      chat_id: chatId,
+      text: '📝 Enter task name:',
+      parse_mode: 'HTML',
+      reply_markup: { force_reply: true, selective: true }
+    })
+    return new Response('ok')
+  }
+
   if (text === '/start' || text === '/help') {
     await sendMessage(chatId,
       `👋 <b>My Trello Bot</b>\n\nSend any text to add a project to the <b>${TELEGRAM_BOARD_NAME}</b> board.\nOr tap the button below to create a Quick Task:`,

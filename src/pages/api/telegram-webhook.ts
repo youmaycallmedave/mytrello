@@ -168,7 +168,9 @@ export const POST: APIRoute = async ({ request }) => {
       id: uid(),
       title: text,
       status: 'todo',
-      tasks: [],
+      subtasks: [],
+      color: 'blue',
+      updatedAt: Date.now(),
       createdAt: new Date().toISOString(),
       source: 'telegram'
     }
@@ -190,7 +192,9 @@ export const POST: APIRoute = async ({ request }) => {
     id: uid(),
     title: text,
     status: 'todo',
-    tasks: [],
+    subtasks: [],
+    color: 'blue',
+    updatedAt: Date.now(),
     createdAt: new Date().toISOString(),
     source: 'telegram'
   }

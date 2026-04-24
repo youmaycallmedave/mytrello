@@ -1954,7 +1954,7 @@ import '../styles/global.css';
             </div>
           </div>
           ${(() => {
-            const pending = proj.subtasks.flatMap(s => s.tasks).filter(t => !t.done).slice(0, 5)
+            const pending = (proj.subtasks || []).flatMap(s => s.tasks || []).filter(t => !t.done).slice(0, 5)
             if (!pending.length) return ''
             return `<div class="px-4 pb-3 flex flex-col gap-1">
               ${pending.map(t => `<div class="flex items-center gap-1.5 text-xs text-gray-500">

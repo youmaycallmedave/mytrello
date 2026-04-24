@@ -208,32 +208,19 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('ok')
   }
 
-  // Plain text → add to Telegram board (status: todo)
-  let tgBoard = boards.find((b: any) => b.name === TELEGRAM_BOARD_NAME)
-  if (!tgBoard) {
-    tgBoard = { id: uid(), name: TELEGRAM_BOARD_NAME, emoji: '📱', projects: [] }
-    boards.push(tgBoard)
-    appData.boards = boards
+  // Plain text → save to journal for today
+  if (!appData.journal) appData.journal = []
+  const now = new Date()
+  const dateKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+  const existing = appData.journal.find((e: any) => e.date === dateKey)
+  if (existing) {
+    existing.content = existing.content ? existing.content + '\n\n' + text : text
+    existing.updatedAt = Date.now()
+  } else {
+    appData.journal.push({ id: uid(), date: dateKey, content: text, createdAt: Date.now() })
   }
-
-  const newProject = {
-    id: uid(),
-    title: text,
-    status: 'todo',
-    subtasks: [],
-    color: 'blue',
-    updatedAt: Date.now(),
-    createdAt: new Date().toISOString(),
-    source: 'telegram'
-  }
-
-  tgBoard.projects.unshift(newProject)
   await sb.from('projects_data').update({ data: appData }).eq('id', row.id)
-
-  await sendMessage(chatId,
-    `✅ <b>Added to ${TELEGRAM_BOARD_NAME}:</b>\n📌 ${text}`,
-    { reply_markup: projectKeyboard(newProject.id) }
-  )
+  await sendMessage(chatId, `📔 <b>Journal saved</b> (${dateKey})\n\n${text.slice(0, 300)}${text.length > 300 ? '...' : ''}`)
 
   return new Response('ok')
 }

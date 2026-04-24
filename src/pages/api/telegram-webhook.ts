@@ -101,6 +101,19 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('ok')
   }
 
+  // handle new_task callback button → ask for task name with ForceReply
+  if (update.callback_query?.data === 'new_task') {
+    const cq = update.callback_query
+    await answerCallback(cq.id)
+    await tgApi('sendMessage', {
+      chat_id: cq.message.chat.id,
+      text: '📝 Enter task name:',
+      parse_mode: 'HTML',
+      reply_markup: { force_reply: true, selective: true }
+    })
+    return new Response('ok')
+  }
+
   // ── Handle text messages ──────────────────────────────────────────────────
   const msg = update.message
   if (!msg?.text) return new Response('ok')
@@ -110,16 +123,23 @@ export const POST: APIRoute = async ({ request }) => {
 
   const text = msg.text.trim()
 
-  // Ignore commands except /start /help
+  // /start or /help
   if (text === '/start' || text === '/help') {
     await sendMessage(chatId,
-      `👋 <b>My Trello Bot</b>\n\nJust send me any text — I'll create a project in your <b>${TELEGRAM_BOARD_NAME}</b> board.\n\nExample:\n<i>Design landing page for client</i>`)
+      `👋 <b>My Trello Bot</b>\n\nSend any text to add a project to the <b>${TELEGRAM_BOARD_NAME}</b> board.\nOr tap the button below to create a Quick Task:`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '➕ New Quick Task', callback_data: 'new_task' }
+          ]]
+        }
+      }
+    )
     return new Response('ok')
   }
 
   if (text.startsWith('/')) return new Response('ok')
 
-  // Create project
   const { data: rows } = await sb.from('projects_data').select('id, data').limit(1)
   const row = rows?.[0]
   const appData = row?.data
@@ -127,7 +147,29 @@ export const POST: APIRoute = async ({ request }) => {
 
   const boards: any[] = appData.boards || []
 
-  // Find or create Telegram board
+  // Reply to bot's "Enter task name:" → Quick Task (status: quicktg), goes to active board
+  const isQuickTask = msg.reply_to_message?.text === '📝 Enter task name:'
+  if (isQuickTask) {
+    const activeBoard = boards.find((b: any) => b.id === appData.activeBoardId) || boards[0]
+    if (!activeBoard) { await sendMessage(chatId, '❌ No board found'); return new Response('ok') }
+    const newTask = {
+      id: uid(),
+      title: text,
+      status: 'quicktg',
+      tasks: [],
+      createdAt: new Date().toISOString(),
+      source: 'telegram'
+    }
+    activeBoard.projects.unshift(newTask)
+    await sb.from('projects_data').update({ data: appData }).eq('id', row.id)
+    await sendMessage(chatId,
+      `⚡ <b>Quick Task added:</b>\n📌 ${text}\n\n<i>Check the "📱 Quick Task from TG" tab in the app</i>`,
+      { reply_markup: projectKeyboard(newTask.id) }
+    )
+    return new Response('ok')
+  }
+
+  // Plain text → add to Telegram board (status: todo)
   let tgBoard = boards.find((b: any) => b.name === TELEGRAM_BOARD_NAME)
   if (!tgBoard) {
     tgBoard = { id: uid(), name: TELEGRAM_BOARD_NAME, projects: [] }

@@ -47,12 +47,24 @@ export const POST: APIRoute = async ({ request }) => {
     import.meta.env.SUPABASE_SERVICE_ROLE_KEY
   )
 
-  // ── Handle callback buttons (status change / delete) ──────────────────────
+  // ── Handle callback buttons ───────────────────────────────────────────────
   if (update.callback_query) {
     const cq = update.callback_query
     const chatId = cq.message.chat.id
     if (String(chatId) !== String(TG_CHAT)) {
       await answerCallback(cq.id, '⛔ Access denied')
+      return new Response('ok')
+    }
+
+    // new_task button → ask for name with ForceReply
+    if (cq.data === 'new_task') {
+      await answerCallback(cq.id)
+      await tgApi('sendMessage', {
+        chat_id: chatId,
+        text: '📝 Enter task name:',
+        parse_mode: 'HTML',
+        reply_markup: { force_reply: true, selective: true }
+      })
       return new Response('ok')
     }
 
@@ -98,19 +110,6 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    return new Response('ok')
-  }
-
-  // handle new_task callback button → ask for task name with ForceReply
-  if (update.callback_query?.data === 'new_task') {
-    const cq = update.callback_query
-    await answerCallback(cq.id)
-    await tgApi('sendMessage', {
-      chat_id: cq.message.chat.id,
-      text: '📝 Enter task name:',
-      parse_mode: 'HTML',
-      reply_markup: { force_reply: true, selective: true }
-    })
     return new Response('ok')
   }
 

@@ -114,7 +114,6 @@ import '../styles/global.css';
     { id: 'pending',    label: 'Wait',               color: '#eab308' },
     { id: 'archived',   label: 'Done',               color: '#22c55e' },
     { id: 'later',      label: 'To Do Later',        color: '#8b5cf6' },
-    { id: 'quicktg',    label: 'From Telegram',         color: '#06b6d4' },
   ]
   function boardStatuses() { return DEFAULT_STATUSES }
   function statusById(id) { return boardStatuses().find(s => s.id === id) || boardStatuses()[0] }
@@ -1875,10 +1874,7 @@ import '../styles/global.css';
 
     const statuses = boardStatuses()
     const counts = {}
-    for (const s of statuses) {
-      const pool = s.id === 'quicktg' ? allTaskProjects() : projects()
-      counts[s.id] = pool.filter(p => (p.status || statuses[0].id) === s.id).length
-    }
+    for (const s of statuses) counts[s.id] = projects().filter(p => (p.status || statuses[0].id) === s.id).length
     if (!homeTab || !statuses.find(s => s.id === homeTab)) homeTab = smartDefaultTab()
 
     let html = `<div class="px-4 py-6 max-w-5xl mx-auto">
@@ -1916,8 +1912,7 @@ import '../styles/global.css';
 
   function renderCardsHTML() {
     const q = homeSearch.trim().toLowerCase()
-    const pool = homeTab === 'quicktg' ? allTaskProjects() : projects()
-    const filtered = pool
+    const filtered = projects()
       .filter(p => (p.status || 'inprogress') === homeTab)
       .filter(p => !q || p.title.toLowerCase().includes(q))
 

@@ -167,7 +167,7 @@ export const POST: APIRoute = async ({ request }) => {
     const newTask = {
       id: uid(),
       title: text,
-      status: 'quicktg',
+      status: 'todo',
       tasks: [],
       createdAt: new Date().toISOString(),
       source: 'telegram'

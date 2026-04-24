@@ -1839,8 +1839,8 @@ import '../styles/global.css';
             ${b.id === appData.activeBoardId
               ? 'bg-white/10 text-white'
               : 'text-white/35 hover:text-white/65 hover:bg-white/5'}">
-          <span>${b.emoji}</span>
-          <span class="hidden sm:inline">${esc(b.name)}</span>
+          <span>${b.emoji || '📋'}</span>
+          <span class="hidden sm:inline">${esc(b.name || 'Board')}</span>
         </button>
         ${canDelete ? `<button data-action="delete-board" data-board-id="${b.id}" data-board-name="${esc(b.name)}"
           class="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/board:opacity-100 transition-opacity

@@ -171,17 +171,14 @@ export const POST: APIRoute = async ({ request }) => {
     }
     activeBoard.projects.unshift(newTask)
     await sb.from('projects_data').update({ data: appData }).eq('id', row.id)
-    await sendMessage(chatId,
-      `⚡ <b>Quick Task added:</b>\n📌 ${text}\n\n<i>Check the "📱 Quick Task from TG" tab in the app</i>`,
-      { reply_markup: projectKeyboard(newTask.id) }
-    )
+    await sendMessage(chatId, `⚡ <b>Quick Task added:</b>\n📌 ${text}`)
     return new Response('ok')
   }
 
   // Plain text → add to Telegram board (status: todo)
   let tgBoard = boards.find((b: any) => b.name === TELEGRAM_BOARD_NAME)
   if (!tgBoard) {
-    tgBoard = { id: uid(), name: TELEGRAM_BOARD_NAME, projects: [] }
+    tgBoard = { id: uid(), name: TELEGRAM_BOARD_NAME, emoji: '📱', projects: [] }
     boards.push(tgBoard)
     appData.boards = boards
   }

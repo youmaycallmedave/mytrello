@@ -129,7 +129,7 @@ import '../styles/global.css';
   const STORAGE_KEY = 'my-trello-v2'
   let appData = { boards: [] }
   let currentProjectId = null
-  let homeTab = 'inprogress'
+  let homeTab = localStorage.getItem('homeTab') || 'inprogress'
   let homeSearch = ''
   let saveTimer = null
   let dbSaveTimer = null
@@ -3121,7 +3121,7 @@ import '../styles/global.css';
       }
       return
     }
-    if (a === 'set-tab') { homeTab = el.dataset.tab; renderHome(); return }
+    if (a === 'set-tab') { homeTab = el.dataset.tab; localStorage.setItem('homeTab', homeTab); renderHome(); return }
     if (a === 'cycle-status') {
       e.stopPropagation()
       const proj = getProject(el.dataset.projectId)

@@ -159,7 +159,10 @@ export const POST: APIRoute = async ({ request }) => {
   // Reply to bot's "Enter task name:" → Quick Task (status: quicktg), goes to active board
   const isQuickTask = msg.reply_to_message?.text === '📝 Enter task name:'
   if (isQuickTask) {
-    const activeBoard = boards.find((b: any) => b.id === appData.activeBoardId) || boards[0]
+    // prefer the first non-Telegram board as the active board
+    const activeBoard = boards.find((b: any) => b.id === appData.activeBoardId && b.name !== TELEGRAM_BOARD_NAME)
+      || boards.find((b: any) => b.name !== TELEGRAM_BOARD_NAME)
+      || boards[0]
     if (!activeBoard) { await sendMessage(chatId, '❌ No board found'); return new Response('ok') }
     const newTask = {
       id: uid(),
@@ -171,7 +174,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
     activeBoard.projects.unshift(newTask)
     await sb.from('projects_data').update({ data: appData }).eq('id', row.id)
-    await sendMessage(chatId, `⚡ <b>Quick Task added:</b>\n📌 ${text}`)
+    await sendMessage(chatId, `⚡ <b>Quick Task added to "${activeBoard.name}":</b>\n📌 ${text}`)
     return new Response('ok')
   }
 

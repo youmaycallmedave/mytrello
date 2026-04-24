@@ -1875,7 +1875,10 @@ import '../styles/global.css';
 
     const statuses = boardStatuses()
     const counts = {}
-    for (const s of statuses) counts[s.id] = projects().filter(p => (p.status || statuses[0].id) === s.id).length
+    for (const s of statuses) {
+      const pool = s.id === 'quicktg' ? allTaskProjects() : projects()
+      counts[s.id] = pool.filter(p => (p.status || statuses[0].id) === s.id).length
+    }
     if (!homeTab || !statuses.find(s => s.id === homeTab)) homeTab = smartDefaultTab()
 
     let html = `<div class="px-4 py-6 max-w-5xl mx-auto">
@@ -1913,7 +1916,8 @@ import '../styles/global.css';
 
   function renderCardsHTML() {
     const q = homeSearch.trim().toLowerCase()
-    const filtered = projects()
+    const pool = homeTab === 'quicktg' ? allTaskProjects() : projects()
+    const filtered = pool
       .filter(p => (p.status || 'inprogress') === homeTab)
       .filter(p => !q || p.title.toLowerCase().includes(q))
 

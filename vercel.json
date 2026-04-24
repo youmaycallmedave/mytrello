@@ -3,6 +3,14 @@
     {
       "path": "/api/backup",
       "schedule": "0 10 * * 0"
+    },
+    {
+      "path": "/api/remind-morning",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/remind-evening",
+      "schedule": "0 18 * * *"
     }
   ]
 }

@@ -77,17 +77,6 @@ import '../styles/global.css';
 
   <main id="app"></main>
 
-  <!-- Distraction tracker FAB -->
-  <div id="distraction-fab" class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
-    <div id="distraction-menu" class="hidden flex-col gap-1 bg-[#1e2429] border border-white/10 rounded-2xl shadow-2xl p-2 min-w-[200px]">
-      <!-- populated by JS -->
-    </div>
-    <button id="btn-distraction"
-      class="w-14 h-14 rounded-full bg-[#282e33] border border-white/10 shadow-xl flex flex-col items-center justify-center gap-0.5 hover:bg-[#2e3540] transition-colors select-none">
-      <span id="distraction-fab-icon" class="text-xl leading-none">⏸</span>
-      <span id="distraction-fab-time" class="text-[10px] font-mono text-white/40 hidden"></span>
-    </button>
-  </div>
 
   <!-- Gamification panel -->
   <div id="gam-overlay" class="hidden fixed inset-0 z-44" style="background:rgba(0,0,0,0.3)"></div>
@@ -2001,78 +1990,6 @@ import '../styles/global.css';
     document.getElementById('btn-new-project').classList.add('hidden')
   }
 
-  const DISTRACTION_CATS = [
-    { id: 'youtube',  label: 'YouTube',       emoji: '📺' },
-    { id: 'reels',    label: 'Reels / Social', emoji: '📱' },
-    { id: 'coffee',   label: 'Coffee / Tea',   emoji: '☕' },
-    { id: 'home',     label: 'Housework',      emoji: '🏠' },
-    { id: 'family',   label: 'Family time',    emoji: '👨‍👧' },
-    { id: 'lunch',    label: 'Lunch / Break',  emoji: '🍽️' },
-    { id: 'walk',     label: 'Walk',           emoji: '🚶' },
-    { id: 'other',    label: 'Other',          emoji: '💭' },
-  ]
-  let activeDistraction = null // { catId, label, emoji, startedAt }
-  let distractionInterval = null
-
-  function startDistraction(cat) {
-    stopDistraction()
-    activeDistraction = { catId: cat.id, label: cat.label, emoji: cat.emoji, startedAt: Date.now() }
-    document.getElementById('distraction-fab-icon').textContent = cat.emoji
-    document.getElementById('distraction-fab-time').classList.remove('hidden')
-    distractionInterval = setInterval(updateDistractionFab, 1000)
-    updateDistractionFab()
-    document.getElementById('distraction-menu').classList.add('hidden')
-    document.getElementById('distraction-menu').classList.remove('flex')
-  }
-
-  async function stopDistraction() {
-    if (!activeDistraction) return
-    const entry = { ...activeDistraction }
-    const duration = Math.round((Date.now() - entry.startedAt) / 1000)
-    activeDistraction = null
-    clearInterval(distractionInterval)
-    distractionInterval = null
-    document.getElementById('distraction-fab-icon').textContent = '⏸'
-    document.getElementById('distraction-fab-time').classList.add('hidden')
-    if (duration >= 10 && currentSession) {
-      await sb.from('time_entries').insert({
-        user_id: currentSession.user.id,
-        project_id: '__distraction__',
-        project_title: entry.label,
-        task_id: entry.catId,
-        task_title: entry.label,
-        subtask_id: null, subtask_title: null,
-        started_at: new Date(entry.startedAt).toISOString(),
-        ended_at: new Date().toISOString(),
-        duration_seconds: duration
-      })
-    }
-  }
-
-  function updateDistractionFab() {
-    if (!activeDistraction) return
-    const sec = Math.round((Date.now() - activeDistraction.startedAt) / 1000)
-    document.getElementById('distraction-fab-time').textContent = fmtDuration(sec)
-  }
-
-  function renderDistractionMenu() {
-    const menu = document.getElementById('distraction-menu')
-    menu.innerHTML = activeDistraction
-      ? `<button id="btn-stop-distraction"
-            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-colors text-left">
-            <span class="text-xl">${activeDistraction.emoji}</span>
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-white/80">${activeDistraction.label}</div>
-              <div class="text-xs text-red-400">Stop tracking</div>
-            </div>
-          </button>`
-      : DISTRACTION_CATS.map(c => `
-          <button data-distraction-id="${c.id}"
-            class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/6 transition-colors text-left">
-            <span class="text-lg">${c.emoji}</span>
-            <span class="text-sm text-white/70">${c.label}</span>
-          </button>`).join('')
-  }
 
   const CRM_PLATFORMS = [
     { id: 'webflow',   label: 'Webflow',   color: 'text-blue-400 bg-blue-400/15' },
@@ -2538,19 +2455,12 @@ import '../styles/global.css';
               <span>Всего: <span class="text-white/70 font-medium">${total}</span></span>
             </div>
             <div class="flex items-center gap-3">
-              <button data-action="toggle-hide-done-subtasks"
-                class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-colors ${hideDoneSubtasks ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-white/30 hover:text-white/50 hover:bg-white/8'}">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                  ${hideDoneSubtasks ? '<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>' : '<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>'}
-                </svg>
-                Подзадачи
-              </button>
-              <button data-action="toggle-hide-done-tasks"
+              <button data-action="toggle-hide-done"
                 class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-colors ${hideDoneTasks ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-white/30 hover:text-white/50 hover:bg-white/8'}">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                   ${hideDoneTasks ? '<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>' : '<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>'}
                 </svg>
-                Задачи
+                ${hideDoneTasks ? 'Показать выполненные' : 'Скрыть выполненные'}
               </button>
             </div>
           </div>
@@ -3276,8 +3186,7 @@ import '../styles/global.css';
       else collapsed.add(stId)
       rerenderProject(); return
     }
-    if (a === 'toggle-hide-done-tasks') { hideDoneTasks = !hideDoneTasks; rerenderProject(); return }
-    if (a === 'toggle-hide-done-subtasks') { hideDoneSubtasks = !hideDoneSubtasks; rerenderProject(); return }
+    if (a === 'toggle-hide-done') { hideDoneTasks = !hideDoneTasks; hideDoneSubtasks = hideDoneTasks; rerenderProject(); return }
 
     // ── CRM actions ──────────────────────────────────────────────────────────
     if (a === 'crm-back-to-list') { history.back(); return }
@@ -3551,6 +3460,7 @@ import '../styles/global.css';
     task.done = inp.checked
     if (task.done && !wasDone) {
       showTaskDoneAnim(inp.closest('[data-drag-task]') || inp)
+      if (activeTimer && activeTimer.taskId === taskId) await stopTimer()
       save()
     } else if (!task.done && wasDone) {
       save()
@@ -3619,30 +3529,6 @@ import '../styles/global.css';
     }
   })
 
-  // ─── DISTRACTION FAB ─────────────────────────────────────────────────────────
-  document.getElementById('btn-distraction').addEventListener('click', e => {
-    e.stopPropagation()
-    renderDistractionMenu()
-    const menu = document.getElementById('distraction-menu')
-    const isHidden = menu.classList.contains('hidden')
-    menu.classList.toggle('hidden', !isHidden)
-    menu.classList.toggle('flex', isHidden)
-  })
-  document.getElementById('distraction-menu').addEventListener('click', async e => {
-    const stopBtn = e.target.closest('#btn-stop-distraction')
-    if (stopBtn) { await stopDistraction(); renderTodayActivity(); return }
-    const catBtn = e.target.closest('[data-distraction-id]')
-    if (catBtn) {
-      const cat = DISTRACTION_CATS.find(c => c.id === catBtn.dataset.distractionId)
-      if (cat) startDistraction(cat)
-    }
-  })
-  document.addEventListener('click', e => {
-    if (!e.target.closest('#distraction-fab')) {
-      document.getElementById('distraction-menu').classList.add('hidden')
-      document.getElementById('distraction-menu').classList.remove('flex')
-    }
-  })
 
   // ─── LOGOUT ──────────────────────────────────────────────────────────────────
   document.getElementById('btn-logout').addEventListener('click', async () => {

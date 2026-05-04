@@ -38,7 +38,9 @@ async function editMessage(chat_id: number | string, message_id: number, text: s
   return tgApi('editMessageText', { chat_id, message_id, text, parse_mode: 'HTML', ...extra })
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async () => {
+  return new Response('ok')
+  /* disabled
   let update: any
   try { update = await request.json() } catch { return new Response('ok') }
 
@@ -234,3 +236,4 @@ function projectKeyboard(projectId: string) {
     ]]
   }
 }
+  */ // end disabled

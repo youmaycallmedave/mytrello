@@ -15,6 +15,7 @@ async function sendTg(text: string) {
 }
 
 export const GET: APIRoute = async ({ request }) => {
+  return new Response(JSON.stringify({ ok: true, disabled: true }), { headers: { 'Content-Type': 'application/json' } })
   const secret = request.headers.get('authorization')?.replace('Bearer ', '')
     || new URL(request.url).searchParams.get('secret')
   if (secret !== import.meta.env.CRON_SECRET) {

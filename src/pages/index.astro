@@ -111,6 +111,7 @@ import '../styles/global.css';
 
   // ─── CONSTANTS ───────────────────────────────────────────────────────────────
   const DEFAULT_STATUSES = [
+    { id: 'inbox',       label: 'Inbox',              color: '#a78bfa' },
     { id: 'todo',        label: 'To Do',              color: '#6b7280' },
     { id: 'inprogress',  label: 'In Progress',        color: '#3b82f6' },
     { id: 'pending',     label: 'Wait',               color: '#eab308' },
@@ -1888,12 +1889,6 @@ import '../styles/global.css';
       <!-- tabs + search -->
       <div class="flex items-center gap-2 mb-5 flex-wrap">
         <div class="flex gap-1 flex-wrap flex-1">
-          <button data-action="set-tab" data-tab="all"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-            style="${homeTab === 'all' ? 'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.9)' : 'color:rgba(255,255,255,0.5)'}">
-            All
-            ${totalCount ? `<span class="text-xs" style="opacity:0.6">${totalCount}</span>` : ''}
-          </button>
           ${statuses.map(s => `
             <button data-action="set-tab" data-tab="${s.id}"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
@@ -1902,6 +1897,12 @@ import '../styles/global.css';
               ${esc(s.label)}
               ${counts[s.id] ? `<span class="text-xs" style="opacity:0.6">${counts[s.id]}</span>` : ''}
             </button>`).join('')}
+          <button data-action="set-tab" data-tab="all"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            style="${homeTab === 'all' ? 'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.9)' : 'color:rgba(255,255,255,0.5)'}">
+            All
+            ${totalCount ? `<span class="text-xs" style="opacity:0.6">${totalCount}</span>` : ''}
+          </button>
         </div>
         <input id="home-search" type="search" placeholder="Поиск..." value="${esc(homeSearch)}"
           class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500/60 placeholder-white/25 text-white/80 w-44"/>

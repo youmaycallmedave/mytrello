@@ -111,12 +111,14 @@ import '../styles/global.css';
 
   // ─── CONSTANTS ───────────────────────────────────────────────────────────────
   const DEFAULT_STATUSES = [
-    { id: 'todo',       label: 'To Do',              color: '#6b7280' },
-    { id: 'inprogress', label: 'In Progress',        color: '#3b82f6' },
-    { id: 'pending',    label: 'Wait',               color: '#eab308' },
-    { id: 'archived',   label: 'Done',               color: '#22c55e' },
-    { id: 'later',      label: 'To Do Later',        color: '#8b5cf6' },
-    { id: 'quicktg',   label: 'TG Inbox',           color: '#06b6d4' },
+    { id: 'todo',        label: 'To Do',              color: '#6b7280' },
+    { id: 'inprogress',  label: 'In Progress',        color: '#3b82f6' },
+    { id: 'pending',     label: 'Wait',               color: '#eab308' },
+    { id: 'waitpayment', label: 'Wait Payment',       color: '#f97316' },
+    { id: 'archived',    label: 'Done',               color: '#22c55e' },
+    { id: 'archive',     label: 'Archive',            color: '#64748b' },
+    { id: 'later',       label: 'To Do Later',        color: '#8b5cf6' },
+    { id: 'quicktg',     label: 'TG Inbox',           color: '#06b6d4' },
   ]
   function boardStatuses() { return DEFAULT_STATUSES }
   function statusById(id) { return boardStatuses().find(s => s.id === id) || boardStatuses()[0] }
@@ -1878,13 +1880,20 @@ import '../styles/global.css';
     const statuses = boardStatuses()
     const counts = {}
     for (const s of statuses) counts[s.id] = projects().filter(p => (p.status || statuses[0].id) === s.id).length
-    if (!homeTab || !statuses.find(s => s.id === homeTab)) homeTab = smartDefaultTab()
+    const totalCount = projects().length
+    if (!homeTab || (homeTab !== 'all' && !statuses.find(s => s.id === homeTab))) homeTab = smartDefaultTab()
 
     let html = `<div class="px-4 py-6 max-w-5xl mx-auto">
       ${backupBannerHTML()}
       <!-- tabs + search -->
       <div class="flex items-center gap-2 mb-5 flex-wrap">
         <div class="flex gap-1 flex-wrap flex-1">
+          <button data-action="set-tab" data-tab="all"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            style="${homeTab === 'all' ? 'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.9)' : 'color:rgba(255,255,255,0.5)'}">
+            All
+            ${totalCount ? `<span class="text-xs" style="opacity:0.6">${totalCount}</span>` : ''}
+          </button>
           ${statuses.map(s => `
             <button data-action="set-tab" data-tab="${s.id}"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
@@ -1916,7 +1925,7 @@ import '../styles/global.css';
   function renderCardsHTML() {
     const q = homeSearch.trim().toLowerCase()
     const filtered = projects()
-      .filter(p => (p.status || 'inprogress') === homeTab)
+      .filter(p => homeTab === 'all' || (p.status || 'inprogress') === homeTab)
       .filter(p => !q || p.title.toLowerCase().includes(q))
 
     if (!filtered.length) return `<div class="col-span-3 py-12 text-center text-white/25 text-sm">
